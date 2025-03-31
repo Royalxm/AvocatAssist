@@ -61,13 +61,16 @@ const initializeDatabase = () => {
       CREATE TABLE IF NOT EXISTS Documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         userId INTEGER,
+        projectId INTEGER, -- Added link to Projects table
         filePath TEXT,
         fileName TEXT,
         fileType TEXT,
         fileSize INTEGER,
         extractedText TEXT,
+        summary TEXT, -- Added column for AI-generated summary
         uploadedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE
+        FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(projectId) REFERENCES Projects(id) ON DELETE CASCADE -- Added FK constraint
       )
     `);
     
@@ -104,6 +107,7 @@ const initializeDatabase = () => {
         userId INTEGER,
         title TEXT,
         description TEXT,
+        type TEXT, -- Added project type (e.g., 'divorce', 'contract')
         status TEXT DEFAULT 'active',
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -202,6 +206,70 @@ const initializeDatabase = () => {
         lastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Create Conversations table for quick AI assistance
+    db.run(`
+      CREATE TABLE IF NOT EXISTS Conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        title TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create Chats table with support for both project and conversation associations
+    db.run(`
+      CREATE TABLE IF NOT EXISTS Chats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        projectId INTEGER,
+        conversationId INTEGER,
+        title TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(projectId) REFERENCES Projects(id) ON DELETE CASCADE,
+        FOREIGN KEY(conversationId) REFERENCES Conversations(id) ON DELETE CASCADE,
+        CHECK ((projectId IS NULL AND conversationId IS NOT NULL) OR (projectId IS NOT NULL AND conversationId IS NULL))
+      )
+    `);
+
+    // Create Messages table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS Messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chatId INTEGER NOT NULL,
+        sender TEXT CHECK(sender IN ('user', 'ai')) NOT NULL,
+        content TEXT NOT NULL,
+        tokensUsed INTEGER DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, -- Added for tracking edits
+        FOREIGN KEY(chatId) REFERENCES Chats(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Trigger to update Chats.updatedAt when a new message is inserted
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_chat_timestamp
+      AFTER INSERT ON Messages
+      FOR EACH ROW
+      BEGIN
+        UPDATE Chats SET updatedAt = CURRENT_TIMESTAMP WHERE id = NEW.chatId;
+      END;
+    `);
+
+    // Trigger to update Messages.updatedAt when content is updated
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_message_timestamp
+      AFTER UPDATE OF content ON Messages
+      FOR EACH ROW
+      WHEN OLD.content IS NOT NEW.content -- Only run if content actually changed
+      BEGIN
+        UPDATE Messages SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
     
     // Insert default subscription plans if they don't exist
     db.get('SELECT COUNT(*) as count FROM SubscriptionPlans', (err, result) => {
@@ -273,7 +341,7 @@ const initializeDatabase = () => {
           'INSERT INTO APISettings (provider, apiKey, endpointUrl, modelName, isDefault) VALUES (?, ?, ?, ?, ?)',
           [
             'openrouter',
-            process.env.OPENROUTER_API_KEY || 'your_openrouter_api_key',
+            process.env.OPENROUTER_API_KEY || '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',
             process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions',
             process.env.OPENROUTER_MODEL || 'openai/gpt-3.5-turbo',
             1
@@ -306,6 +374,34 @@ const initializeDatabase = () => {
         db.run(
           'INSERT INTO Users (name, email, password, role, creditBalance) VALUES (?, ?, ?, ?, ?)',
           ['Admin', 'admin@avocatassist.com', hashedPassword, 'manager', 9999],
+          function(err) {
+            if (err) {
+              console.error('Error inserting admin user:', err.message);
+            } else {
+              console.log('Admin user created');
+            }
+          }
+        );
+      }
+    });
+
+    // Create admin user if it doesn't exist
+    db.get('SELECT COUNT(*) as count FROM Users WHERE role = ?', ['client'], (err, result) => {
+      if (err) {
+        console.error('Error checking admin user:', err.message);
+        return;
+      }
+      
+      if (result.count === 0) {
+        // Hash password (in a real app, use bcrypt)
+        const bcrypt = require('bcryptjs');
+        const salt = bcrypt.genSaltSync(10);
+        const hashedPassword = bcrypt.hashSync('admin123', salt);
+        
+        // Insert admin user
+        db.run(
+          'INSERT INTO Users (name, email, password, role, creditBalance) VALUES (?, ?, ?, ?, ?)',
+          ['Admin', 'client@avocatassist.com', hashedPassword, 'client', 9999],
           function(err) {
             if (err) {
               console.error('Error inserting admin user:', err.message);

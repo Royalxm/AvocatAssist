@@ -6,12 +6,13 @@ const { db } = require('../config/database');
  * @param {Function} callback - Callback function
  */
 exports.createProject = (projectData, callback) => {
-  const { userId, title, description } = projectData;
+  // Add type to destructuring and query
+  const { userId, title, description, type } = projectData;
   
   // Insert project
   db.run(
-    'INSERT INTO Projects (userId, title, description, createdAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
-    [userId, title, description || null],
+    'INSERT INTO Projects (userId, title, description, type, createdAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+    [userId, title, description || null, type || null],
     function(err) {
       if (err) {
         return callback(err);
@@ -28,6 +29,7 @@ exports.createProject = (projectData, callback) => {
  * @param {Function} callback - Callback function
  */
 exports.getProjectById = (id, callback) => {
+  // Select all columns including type
   db.get('SELECT * FROM Projects WHERE id = ?', [id], (err, project) => {
     if (err) {
       return callback(err);
@@ -49,7 +51,16 @@ exports.getProjectById = (id, callback) => {
  * @param {Function} callback - Callback function
  */
 exports.getProjectsByUserId = (userId, page, limit, callback) => {
-  const query = 'SELECT * FROM Projects WHERE userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+  // Select project columns and the associated chat ID
+  const query = `
+    SELECT p.*, c.id as chatId
+    FROM Projects p
+    LEFT JOIN Chats c ON p.id = c.projectId
+    WHERE p.userId = ?
+    ORDER BY p.createdAt DESC
+    LIMIT ? OFFSET ?
+  `;
+  // Count query remains the same, counting projects
   const countQuery = 'SELECT COUNT(*) as total FROM Projects WHERE userId = ?';
   
   // Get total count
@@ -86,7 +97,8 @@ exports.getProjectsByUserId = (userId, page, limit, callback) => {
  * @param {Function} callback - Callback function
  */
 exports.updateProject = (id, projectData, callback) => {
-  const { title, description } = projectData;
+  // Add type to destructuring
+  const { title, description, type } = projectData;
   
   // Check if project exists
   db.get('SELECT id FROM Projects WHERE id = ?', [id], (err, project) => {
@@ -112,10 +124,21 @@ exports.updateProject = (id, projectData, callback) => {
       params.push(description);
     }
     
-    // Remove trailing comma
-    query = query.slice(0, -1);
+    // Add type to update query
+    if (type !== undefined) {
+      query += ' type = ?,';
+      params.push(type);
+    }
     
-    query += ' WHERE id = ?';
+    // Remove trailing comma if fields were added
+    if (params.length > 0) {
+      query = query.slice(0, -1);
+    } else {
+      // No fields to update
+      return callback(null, { projectId: id, changes: 0 });
+    }
+    
+    query += ', updatedAt = CURRENT_TIMESTAMP WHERE id = ?'; // Also update timestamp
     params.push(id);
     
     db.run(query, params, function(err) {
@@ -150,141 +173,17 @@ exports.deleteProject = (id, callback) => {
         return callback(err);
       }
       
-      // Delete project documents
-      db.run('DELETE FROM ProjectDocuments WHERE projectId = ?', [id], function(err) {
-        if (err) {
-          return callback(err);
-        }
-        
-        callback(null, { projectId: id, changes: this.changes });
-      });
+      // Documents are now linked directly via projectId and will cascade delete if set up correctly in schema.
+      // No need to delete from ProjectDocuments table anymore.
+      callback(null, { projectId: id, changes: this.changes });
     });
   });
 };
 
-/**
- * Add document to project
- * @param {Number} projectId - Project ID
- * @param {Number} documentId - Document ID
- * @param {Function} callback - Callback function
- */
-exports.addDocumentToProject = (projectId, documentId, callback) => {
-  // Check if project exists
-  db.get('SELECT userId FROM Projects WHERE id = ?', [projectId], (err, project) => {
-    if (err) {
-      return callback(err);
-    }
-    
-    if (!project) {
-      return callback(new Error('Projet non trouvé'));
-    }
-    
-    // Check if document exists and belongs to the same user
-    db.get('SELECT userId FROM Documents WHERE id = ?', [documentId], (err, document) => {
-      if (err) {
-        return callback(err);
-      }
-      
-      if (!document) {
-        return callback(new Error('Document non trouvé'));
-      }
-      
-      if (document.userId !== project.userId) {
-        return callback(new Error('Le document n\'appartient pas à l\'utilisateur du projet'));
-      }
-      
-      // Check if document is already in project
-      db.get(
-        'SELECT * FROM ProjectDocuments WHERE projectId = ? AND documentId = ?',
-        [projectId, documentId],
-        (err, projectDocument) => {
-          if (err) {
-            return callback(err);
-          }
-          
-          if (projectDocument) {
-            // Document already in project, return success
-            return callback(null, { projectId, documentId });
-          }
-          
-          // Add document to project
-          db.run(
-            'INSERT INTO ProjectDocuments (projectId, documentId) VALUES (?, ?)',
-            [projectId, documentId],
-            function(err) {
-              if (err) {
-                return callback(err);
-              }
-              
-              callback(null, { projectId, documentId });
-            }
-          );
-        }
-      );
-    });
-  });
-};
+// Removed addDocumentToProject, removeDocumentFromProject, getProjectDocuments as they are obsolete
 
 /**
- * Remove document from project
- * @param {Number} projectId - Project ID
- * @param {Number} documentId - Document ID
- * @param {Function} callback - Callback function
- */
-exports.removeDocumentFromProject = (projectId, documentId, callback) => {
-  // Check if document is in project
-  db.get(
-    'SELECT * FROM ProjectDocuments WHERE projectId = ? AND documentId = ?',
-    [projectId, documentId],
-    (err, projectDocument) => {
-      if (err) {
-        return callback(err);
-      }
-      
-      if (!projectDocument) {
-        return callback(new Error('Document non trouvé dans ce projet'));
-      }
-      
-      // Remove document from project
-      db.run(
-        'DELETE FROM ProjectDocuments WHERE projectId = ? AND documentId = ?',
-        [projectId, documentId],
-        function(err) {
-          if (err) {
-            return callback(err);
-          }
-          
-          callback(null, { projectId, documentId, changes: this.changes });
-        }
-      );
-    }
-  );
-};
-
-/**
- * Get project documents
- * @param {Number} projectId - Project ID
- * @param {Function} callback - Callback function
- */
-exports.getProjectDocuments = (projectId, callback) => {
-  const query = `
-    SELECT d.* FROM Documents d
-    JOIN ProjectDocuments pd ON d.id = pd.documentId
-    WHERE pd.projectId = ?
-    ORDER BY d.uploadedAt DESC
-  `;
-  
-  db.all(query, [projectId], (err, documents) => {
-    if (err) {
-      return callback(err);
-    }
-    
-    callback(null, documents);
-  });
-};
-
-/**
- * Search projects by title or description
+ * Search projects by title, description or type
  * @param {Number} userId - User ID
  * @param {String} searchTerm - Search term
  * @param {Number} page - Page number
@@ -292,11 +191,14 @@ exports.getProjectDocuments = (projectId, callback) => {
  * @param {Function} callback - Callback function
  */
 exports.searchProjects = (userId, searchTerm, page, limit, callback) => {
+  // Select all columns including type
+  // Search also in the type field
   const query = `
     SELECT * FROM Projects 
     WHERE userId = ? AND (
       title LIKE ? OR 
-      description LIKE ?
+      description LIKE ? OR
+      type LIKE ? 
     )
     ORDER BY createdAt DESC
     LIMIT ? OFFSET ?
@@ -306,14 +208,15 @@ exports.searchProjects = (userId, searchTerm, page, limit, callback) => {
     SELECT COUNT(*) as total FROM Projects 
     WHERE userId = ? AND (
       title LIKE ? OR 
-      description LIKE ?
+      description LIKE ? OR
+      type LIKE ?
     )
   `;
   
   const searchPattern = `%${searchTerm}%`;
   
   // Get total count
-  db.get(countQuery, [userId, searchPattern, searchPattern], (err, result) => {
+  db.get(countQuery, [userId, searchPattern, searchPattern, searchPattern], (err, result) => {
     if (err) {
       return callback(err);
     }
@@ -323,7 +226,7 @@ exports.searchProjects = (userId, searchTerm, page, limit, callback) => {
     // Get projects
     db.all(
       query,
-      [userId, searchPattern, searchPattern, limit, (page - 1) * limit],
+      [userId, searchPattern, searchPattern, searchPattern, limit, (page - 1) * limit],
       (err, projects) => {
         if (err) {
           return callback(err);

@@ -1,25 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 
-const AiAssistant = () => {
-  const { projectId, chatId } = useParams();
-  const isProjectMode = !!projectId;
-  const currentId = projectId || chatId;
+const QuickAiAssistant = () => {
   const { currentUser } = useAuth();
 
-  // Document state
-  const [documents, setDocuments] = useState([]);
-  const [loadingDocuments, setLoadingDocuments] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Chat state
-  const [projectChatId, setProjectChatId] = useState(null);
-  const [projectTitle, setProjectTitle] = useState('');
-  const [isLoadingProjectChat, setIsLoadingProjectChat] = useState(true);
+  // Conversation state
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [conversationTitle, setConversationTitle] = useState('');
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -39,115 +29,107 @@ const AiAssistant = () => {
   // Editing state
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [newConversationTitle, setNewConversationTitle] = useState('');
 
   const messagesEndRef = useRef(null);
 
-  // Fetch chat for project
+  // Fetch conversations
   useEffect(() => {
-    const fetchOrCreateProjectChat = async () => {
-      if (!projectId) {
-        setChatError("ID du projet manquant dans l'URL.");
-        setIsLoadingProjectChat(false);
-        return;
-      }
-
-      setIsLoadingProjectChat(true);
-      setChatError(null);
-      setMessages([]);
-      setProjectChatId(null);
-
+    const fetchConversations = async () => {
+      setLoadingConversations(true);
       try {
-        const response = await axios.get(`/chats?projectId=${projectId}`);
-        const existingChats = response.data;
-
-        if (existingChats && existingChats.length > 0) {
-          setProjectChatId(existingChats[0].id);
-          setProjectTitle(existingChats[0].title || `Projet ${projectId}`);
-        } else {
-          const createResponse = await axios.post('/chats', {
-            projectId: projectId,
-            title: `Conversation Projet ${projectId}`
-          });
-          const newChat = createResponse.data;
-          if (newChat && newChat.id) {
-            setProjectChatId(newChat.id);
-            setProjectTitle(newChat.title);
-          } else {
-            throw new Error('Failed to create chat for the project.');
-          }
+        const response = await axios.get('/conversations');
+        setConversations(response.data || []);
+        
+        // Select the first conversation if available
+        if (response.data && response.data.length > 0) {
+          setSelectedConversationId(response.data[0].id);
+          setConversationTitle(response.data[0].title);
         }
       } catch (err) {
-        console.error('Error fetching or creating project chat:', err);
-        setChatError(err.response?.data?.message || 'Impossible de charger ou créer la conversation pour ce projet.');
+        console.error('Error fetching conversations:', err);
+        setError(err.response?.data?.message || 'Impossible de charger les conversations.');
       } finally {
-        setIsLoadingProjectChat(false);
+        setLoadingConversations(false);
       }
     };
 
-    if (projectId) {
-      fetchOrCreateProjectChat();
-    }
-  }, [projectId]);
-  
-  // Fetch messages
+    fetchConversations();
+  }, []);
+
+  // Fetch messages for selected conversation
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!projectChatId) {
+      if (!selectedConversationId) {
         setMessages([]);
         return;
       }
+      
       setLoadingMessages(true);
       setChatError(null);
       setError(null);
+      
       try {
-        const response = await axios.get(`/chats/${projectChatId}`);
+        const response = await axios.get(`/conversations/${selectedConversationId}`);
         setMessages(response.data.messages || []);
       } catch (err) {
-        console.error(`Error fetching messages for chat ${projectChatId}:`, err);
-        setChatError(err.response?.data?.message || `Failed to load messages for conversation.`);
+        console.error(`Error fetching messages for conversation ${selectedConversationId}:`, err);
+        setChatError(err.response?.data?.message || 'Impossible de charger les messages.');
         setMessages([]);
       } finally {
         setLoadingMessages(false);
       }
     };
     
-    if (projectChatId) {
+    if (selectedConversationId) {
       fetchMessages();
     }
-  }, [projectChatId]);
-
-  // Fetch documents
-  useEffect(() => {
-    const fetchProjectDocuments = async () => {
-      if (!projectId) return;
-      
-      setLoadingDocuments(true);
-      
-      try {
-        const response = await axios.get(`/documents?projectId=${projectId}`);
-        setDocuments(response.data.documents || []);
-      } catch (err) {
-        console.error('Error fetching project documents:', err);
-        setError(err.response?.data?.message || "Erreur lors de la récupération des documents.");
-      } finally {
-        setLoadingDocuments(false);
-      }
-    };
-    
-    if (isProjectMode) {
-      fetchProjectDocuments();
-    }
-  }, [projectId, isProjectMode]);
+  }, [selectedConversationId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Create new conversation
+  const handleCreateConversation = async (e) => {
+    e.preventDefault();
+    
+    if (!newConversationTitle.trim()) {
+      setError('Veuillez entrer un titre pour la conversation.');
+      return;
+    }
+    
+    try {
+      const response = await axios.post('/conversations', {
+        title: newConversationTitle
+      });
+      
+      const newConversation = response.data;
+      setConversations([newConversation, ...conversations]);
+      setSelectedConversationId(newConversation.id);
+      setConversationTitle(newConversation.title);
+      setNewConversationTitle('');
+      setIsCreatingConversation(false);
+      setError(null);
+    } catch (err) {
+      console.error('Error creating conversation:', err);
+      setError(err.response?.data?.message || 'Impossible de créer la conversation.');
+    }
+  };
+
+  // Select conversation
+  const handleSelectConversation = (conversation) => {
+    setSelectedConversationId(conversation.id);
+    setConversationTitle(conversation.title);
+    setError(null);
+  };
+
   // Send message
   const handleSendMessage = async (e, suggestedMessage = null) => {
     if (e) e.preventDefault();
-    if (!projectChatId) return;
+    if (!selectedConversationId) return;
     
     const userMessageContent = suggestedMessage || input;
     if (!userMessageContent.trim()) return;
@@ -167,7 +149,7 @@ const AiAssistant = () => {
     try {
       const payload = {
         question: userMessageContent,
-        chatId: projectChatId,
+        conversationId: selectedConversationId,
       };
 
       const response = await axios.post('/ai/ask', payload);
@@ -181,8 +163,8 @@ const AiAssistant = () => {
       };
 
       setMessages(prev => {
-          const newMessages = prev.filter(msg => msg.id !== userMessage.id);
-          return [...newMessages, userMessage, aiMessage];
+        const newMessages = prev.filter(msg => msg.id !== userMessage.id);
+        return [...newMessages, userMessage, aiMessage];
       });
 
       if (aiResponseData.suggestedQuestions && aiResponseData.suggestedQuestions.length > 0) {
@@ -228,84 +210,6 @@ const AiAssistant = () => {
     setSuggestedMessages(shuffled.slice(0, 5));
   };
 
-  // Handle file change
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-  
-  // Upload document
-  const handleUploadDocument = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedFile || !projectId) return;
-    
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('projectId', projectId);
-    
-    try {
-      const uploadInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(uploadInterval);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 200);
-      
-      const response = await axios.post('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      
-      clearInterval(uploadInterval);
-      setUploadProgress(100);
-      
-      if (response.data.success) {
-        const newDocument = response.data.document;
-        setDocuments(prev => [newDocument, ...prev]);
-        
-        const systemMessage = {
-          id: `system-${Date.now()}`,
-          sender: 'ai',
-          content: `Document "${newDocument.fileName}" ajouté au dossier. Vous pouvez maintenant me poser des questions à ce sujet.`,
-          timestamp: new Date().toISOString(),
-          isSystem: true
-        };
-        setMessages(prev => [...prev, systemMessage]);
-      }
-    } catch (err) {
-      console.error('Error uploading document:', err);
-      setError(err.response?.data?.message || "Erreur lors de l'upload du document.");
-    } finally {
-      setIsUploading(false);
-      setSelectedFile(null);
-    }
-  };
-  
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B';
-    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    else return (bytes / 1048576).toFixed(1) + ' MB';
-  };
-  
-  // Get file icon
-  const getFileIcon = (fileType) => {
-    if (fileType.includes('pdf')) return '📄';
-    else if (fileType.includes('word') || fileType.includes('doc')) return '📝';
-    else if (fileType.includes('image')) return '🖼️';
-    else if (fileType.includes('text')) return '📃';
-    else return '📁';
-  };
-
   // Format time
   const formatTime = (dateString) => {
     if (!dateString) return '';
@@ -313,16 +217,27 @@ const AiAssistant = () => {
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   // Delete message
   const handleDeleteMessage = async (messageId) => {
-    if (!projectChatId || !messageId) return;
+    if (!selectedConversationId || !messageId) return;
 
     const originalMessages = [...messages];
     setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
     setError(null);
 
     try {
-      await axios.delete(`/chats/${projectChatId}/messages/${messageId}`);
+      await axios.delete(`/conversations/${selectedConversationId}/messages/${messageId}`);
     } catch (err) {
       console.error('Error deleting message:', err);
       setError(err.response?.data?.message || 'Failed to delete message.');
@@ -344,7 +259,7 @@ const AiAssistant = () => {
 
   // Save edit
   const handleSaveEdit = async () => {
-    if (!editingMessageId || !editingContent.trim() || !projectChatId) return;
+    if (!editingMessageId || !editingContent.trim() || !selectedConversationId) return;
 
     const originalMessages = [...messages];
     const newContent = editingContent.trim();
@@ -358,7 +273,7 @@ const AiAssistant = () => {
     setError(null);
 
     try {
-      await axios.put(`/chats/${projectChatId}/messages/${editingMessageId}`, { content: newContent });
+      await axios.put(`/conversations/${selectedConversationId}/messages/${editingMessageId}`, { content: newContent });
     } catch (err) {
       console.error('Error saving edited message:', err);
       setError(err.response?.data?.message || 'Failed to save message edit.');
@@ -368,13 +283,91 @@ const AiAssistant = () => {
 
   return (
     <div className="flex h-full">
+      {/* Conversations Sidebar */}
+      <div className="w-80 h-full bg-white border-r flex flex-col">
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold mb-2">Conversations</h2>
+          <button
+            onClick={() => setIsCreatingConversation(true)}
+            className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Nouvelle conversation
+          </button>
+        </div>
+
+        {isCreatingConversation && (
+          <div className="p-4 border-b bg-gray-50">
+            <form onSubmit={handleCreateConversation} className="space-y-2">
+              <input
+                type="text"
+                value={newConversationTitle}
+                onChange={(e) => setNewConversationTitle(e.target.value)}
+                placeholder="Titre de la conversation"
+                className="form-input w-full"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingConversation(false);
+                    setNewConversationTitle('');
+                  }}
+                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded text-sm"
+                  disabled={!newConversationTitle.trim()}
+                >
+                  Créer
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="flex-grow overflow-y-auto">
+          {loadingConversations ? (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary-600"></div>
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              <p>Aucune conversation</p>
+              <p className="text-sm mt-2">Créez une nouvelle conversation pour commencer à discuter avec l'IA</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-200">
+              {conversations.map(conversation => (
+                <li 
+                  key={conversation.id} 
+                  className={`p-3 hover:bg-gray-50 cursor-pointer ${selectedConversationId === conversation.id ? 'bg-gray-100' : ''}`}
+                  onClick={() => handleSelectConversation(conversation)}
+                >
+                  <div className="flex flex-col">
+                    <p className="font-medium text-gray-900 truncate">{conversation.title}</p>
+                    <p className="text-xs text-gray-500">{formatDate(conversation.createdAt)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       {/* Main Chat Area */}
-      <div className="flex-grow flex flex-col bg-white h-full border-r">
+      <div className="flex-grow flex flex-col bg-white h-full">
         {/* Header */}
         <div className="flex-shrink-0 border-b bg-white shadow-sm z-10 p-4">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold">
-              {isLoadingProjectChat ? 'Chargement...' : projectTitle || `Projet ${projectId}`}
+              {loadingConversations ? 'Chargement...' : conversationTitle || 'Assistance IA'}
             </h1>
           </div>
           {error && !messages.find(m => m.isError) && (
@@ -385,19 +378,19 @@ const AiAssistant = () => {
         {/* Messages Area */}
         <div className="flex-grow flex flex-col overflow-hidden">
           <div className="flex-grow overflow-y-auto p-4 space-y-4">
-            {isLoadingProjectChat ? (
+            {loadingConversations ? (
               <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600 mr-2"></div>
-                Chargement de la conversation du projet...
+                Chargement des conversations...
               </div>
             ) : loadingMessages ? (
               <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600 mr-2"></div>
                 Chargement des messages...
               </div>
-            ) : !projectChatId && !chatError ? (
+            ) : !selectedConversationId ? (
               <div className="flex items-center justify-center h-full text-gray-400">
-                Impossible de charger la conversation pour ce projet.
+                Sélectionnez une conversation ou créez-en une nouvelle pour commencer.
               </div>
             ) : chatError ? (
               <div className="flex items-center justify-center h-full text-red-500">{chatError}</div>
@@ -507,7 +500,7 @@ const AiAssistant = () => {
 
           {/* Input area */}
           <div className="border-t border-gray-200 bg-white">
-            {projectChatId && !isTyping && suggestedMessages.length > 0 && (
+            {selectedConversationId && !isTyping && suggestedMessages.length > 0 && (
               <div className="p-3 flex flex-wrap gap-2 justify-center">
                 {suggestedMessages.map((message, index) => (
                   <button
@@ -527,14 +520,14 @@ const AiAssistant = () => {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={projectChatId ? "Posez votre question ici..." : "Chargement de la conversation..."}
+                  placeholder={selectedConversationId ? "Posez votre question ici..." : "Sélectionnez une conversation..."}
                   className="form-input flex-grow rounded-full px-4 py-2 border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-                  disabled={!projectChatId || isTyping || loadingMessages}
+                  disabled={!selectedConversationId || isTyping || loadingMessages}
                 />
                 <button
                   type="submit"
                   className="bg-primary-600 hover:bg-primary-700 text-white rounded-full p-3 flex items-center justify-center"
-                  disabled={!input.trim() || isTyping || !projectChatId || loadingMessages}
+                  disabled={!input.trim() || isTyping || !selectedConversationId || loadingMessages}
                   aria-label="Envoyer"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -546,86 +539,8 @@ const AiAssistant = () => {
           </div>
         </div>
       </div>
-
-      {/* Documents Sidebar */}
-      {isProjectMode && (
-        <div className="w-80 h-full bg-white border-l flex flex-col">
-          <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold flex items-center">
-              <span className="mr-2">📁</span>
-              Documents du dossier
-            </h2>
-          </div>
-
-          {/* Upload form */}
-          <div className="p-4 border-b">
-            <h3 className="text-sm font-medium mb-2">Ajouter un document</h3>
-            <form onSubmit={handleUploadDocument} className="space-y-2">
-              <div className="flex flex-col space-y-2">
-                <input
-                  type="file"
-                  id="document"
-                  onChange={handleFileChange}
-                  className="form-input text-sm"
-                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                  disabled={isUploading}
-                />
-                <button
-                  type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white text-sm py-1 px-3 rounded"
-                  disabled={!selectedFile || isUploading}
-                >
-                  {isUploading ? 'Envoi...' : 'Envoyer'}
-                </button>
-              </div>
-              
-              {isUploading && (
-                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                  <div
-                    className="bg-primary-600 h-1.5 rounded-full"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                  <p className="text-xs text-gray-500 mt-1">{uploadProgress}% téléchargé</p>
-                </div>
-              )}
-              
-              <p className="text-xs text-gray-500">
-                Formats acceptés: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG
-              </p>
-            </form>
-          </div>
-          
-          {/* Documents list */}
-          <div className="flex-grow overflow-y-auto">
-            {loadingDocuments ? (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary-600"></div>
-              </div>
-            ) : documents.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <p>Aucun document dans ce dossier</p>
-                <p className="text-sm mt-2">Ajoutez des documents pour enrichir le contexte de vos conversations avec l'IA</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-gray-200">
-                {documents.map(doc => (
-                  <li key={doc.id} className="p-3 hover:bg-gray-50">
-                    <div className="flex items-center">
-                      <span className="text-xl mr-2">{getFileIcon(doc.fileType)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{doc.fileName}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default AiAssistant;
+export default QuickAiAssistant;

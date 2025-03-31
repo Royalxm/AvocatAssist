@@ -1,5 +1,8 @@
 const { validationResult } = require('express-validator');
 const UserModel = require('../models/UserModel');
+const ProjectModel = require('../models/ProjectModel'); // Import ProjectModel
+const LegalRequestModel = require('../models/LegalRequestModel'); // Import LegalRequestModel
+const ProposalModel = require('../models/ProposalModel'); // Import ProposalModel
 const { AppError, asyncHandler } = require('../middleware/error');
 
 /**
@@ -230,4 +233,65 @@ module.exports = {
   getLawyers,
   updateCreditBalance,
   getCreditTransactions
+};
+
+/**
+ * Get dashboard stats for the logged-in user
+ * @route GET /api/users/stats
+ * @access Private
+ */
+const getUserStats = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    // Fetch counts in parallel
+    const [projectResult, requestCount, proposalCount] = await Promise.all([
+      // Fetch projects just to get the total count from pagination
+      new Promise((resolve, reject) => {
+        ProjectModel.getProjectsByUserId(userId, 1, 1, (err, result) => { // Fetch page 1, limit 1 to get total
+          if (err) return reject(err);
+          resolve(result);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        LegalRequestModel.countByClientId(userId, (err, count) => {
+          if (err) return reject(err);
+          resolve(count);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        ProposalModel.countByClientId(userId, (err, count) => {
+          if (err) return reject(err);
+          resolve(count);
+        });
+      })
+    ]);
+
+    const projectCount = projectResult.pagination.total || 0;
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        projects: projectCount,
+        legalRequests: requestCount,
+        proposals: proposalCount
+        // Credit balance is usually fetched separately or part of user profile/auth context
+      }
+    });
+
+  } catch (error) {
+    console.error('Get user stats error:', error);
+    res.status(500).json({ message: 'Erreur lors de la récupération des statistiques utilisateur' });
+  }
+});
+
+module.exports = {
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  getLawyers,
+  updateCreditBalance,
+  getCreditTransactions,
+  getUserStats // Export the new function
 };

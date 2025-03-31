@@ -150,27 +150,57 @@ const OpenRouterClient = {
         context = 'Contexte des documents:\n\n';
         
         for (const doc of documents) {
-          if (doc.extractedText) {
-            const excerpt = doc.extractedText.substring(0, 2000); // Take first 2000 chars of each document
-            if (currentLength + excerpt.length <= maxContextLength) {
-              context += `Document "${doc.fileName}":\n${excerpt}\n\n`;
-              currentLength += excerpt.length;
+          let contentToAdd = null;
+          // Prioritize using the summary if available
+          if (doc.summary && doc.summary.trim() !== '') {
+            contentToAdd = `Résumé du document "${doc.fileName}":\n${doc.summary}\n\n`;
+          } 
+          // Fallback to extracted text excerpt if no summary
+          else if (doc.extractedText) {
+            const excerpt = doc.extractedText.substring(0, 2000); // Take first 2000 chars
+            contentToAdd = `Extrait du document "${doc.fileName}":\n${excerpt}\n\n`;
+          }
+
+          if (contentToAdd) {
+            if (currentLength + contentToAdd.length <= maxContextLength) {
+              context += contentToAdd;
+              currentLength += contentToAdd.length;
             } else {
-              break;
+              // Add a note that context was truncated
+              context += `\n[Note: Le contexte des documents suivants a été tronqué en raison de la limite de longueur.]\n`;
+              break; 
             }
           }
         }
       }
       
-      const prompt = `En tant qu'assistant juridique, veuillez répondre à la question suivante en français, en vous basant sur le droit français. Fournissez des conseils juridiques généraux, des références aux lois pertinentes si possible, et précisez les limites de votre réponse.
-      
+      const prompt = `Vous êtes un assistant juridique expert basé sur le modèle deepseek/deepseek-r1-distill-llama-70b. Votre objectif est d'aider l'utilisateur en fournissant des informations juridiques générales et claires en français, basées sur le droit français.
+
+Instructions :
+1.  **Analyser la question :** Décomposez la question de l'utilisateur pour bien comprendre ses besoins.
+2.  **Utiliser le contexte :** Si des documents sont fournis en contexte, analysez-les attentivement pour éclairer votre réponse.
+3.  **Raisonnement étape par étape :** Expliquez votre raisonnement de manière logique et structurée.
+4.  **Demander des clarifications :** Si la question est ambiguë, incomplète, ou si des informations cruciales manquent pour fournir une réponse pertinente, posez des questions claires et ciblées à l'utilisateur pour obtenir les détails nécessaires. N'hésitez pas à demander des précisions.
+5.  **Fournir des informations :** Donnez des informations juridiques générales, citez les articles de loi pertinents lorsque c'est possible, et expliquez les concepts juridiques complexes en termes simples.
+6.  **Être utile :** Anticipez les questions potentielles de l'utilisateur et fournissez des informations complémentaires pertinentes. Suggérez des étapes possibles ou des points à considérer.
+7.  **Préciser les limites :** Rappelez systématiquement que vos réponses constituent des informations juridiques générales et ne remplacent PAS un avis juridique personnalisé fourni par un avocat qualifié. Recommandez explicitement de consulter un avocat pour des conseils adaptés à la situation spécifique de l'utilisateur.
+8.  **Proposer des questions de suivi :** À la fin de votre réponse, proposez 3 à 5 questions de suivi pertinentes que l'utilisateur pourrait poser pour approfondir le sujet. Formatez ces questions sous la forme suivante:
+
+QUESTIONS_SUGGÉRÉES:
+1. [Question 1]
+2. [Question 2]
+3. [Question 3]
+4. [Question 4 - optionnelle]
+5. [Question 5 - optionnelle]
+
+Contexte des documents fournis (le cas échéant) :
 ${context}
 
-Question: ${question}
+Question de l'utilisateur : ${question}
 
-Important: Précisez que votre réponse est une information juridique générale et non un avis juridique personnalisé. Recommandez de consulter un avocat pour des conseils spécifiques à la situation.`;
+Réponse de l'assistant juridique (en suivant les instructions ci-dessus, incluant les questions suggérées à la fin) :`;
       
-      const messages = [{ role: 'user', content: prompt }];
+      const messages = [{ role: 'system', content: prompt }]; // Changed role to system for better instruction following
       const response = await OpenRouterClient.createChatCompletion(messages, {
         temperature: 0.4,
         max_tokens: 2000,

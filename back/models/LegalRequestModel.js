@@ -60,6 +60,21 @@ exports.getLegalRequestById = (id, callback) => {
 };
 
 /**
+ * Count legal requests by client ID
+ * @param {Number} clientId - Client ID
+ * @param {Function} callback - Callback function
+ */
+exports.countByClientId = (clientId, callback) => {
+  const countQuery = 'SELECT COUNT(*) as total FROM LegalRequests WHERE clientId = ?';
+  db.get(countQuery, [clientId], (err, result) => {
+    if (err) {
+      return callback(err);
+    }
+    callback(null, result.total || 0);
+  });
+};
+
+/**
  * Get legal requests by client ID with pagination
  * @param {Number} clientId - Client ID
  * @param {Number} page - Page number

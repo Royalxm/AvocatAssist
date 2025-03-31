@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const DocumentModel = require('../models/DocumentModel');
+const OpenRouterClient = require('../utils/openRouter'); // Import OpenRouterClient
 const { AppError, asyncHandler } = require('../middleware/error');
 
 /**
@@ -18,7 +19,21 @@ const uploadDocument = asyncHandler(async (req, res) => {
   
   const { file } = req;
   const userId = req.user.id;
-  
+  // Get projectId from request body
+  const { projectId } = req.body; 
+
+  // Validate projectId
+  if (!projectId) {
+    // Clean up uploaded file if projectId is missing
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path); 
+    }
+    return res.status(400).json({ message: 'L\'ID du projet est requis pour télécharger un document' });
+  }
+
+  // TODO: Optional - Validate that the project exists and belongs to the user
+  // ProjectModel.getProjectById(projectId, (err, project) => { ... });
+
   try {
     // Extract text from document if it's a PDF
     let extractedText = null;
@@ -34,15 +49,28 @@ const uploadDocument = asyncHandler(async (req, res) => {
       }
     }
     
-    // Create document in database
+    // Generate summary if text was extracted
+    let summary = null;
+    if (extractedText) {
+      try {
+        summary = await OpenRouterClient.generateDocumentSummary(extractedText);
+      } catch (summaryErr) {
+        console.error('Error generating document summary:', summaryErr);
+        // Continue without summary if generation fails
+      }
+    }
+    
+    // Create document in database, including the summary
     DocumentModel.createDocument(
       {
         userId,
+        projectId, // Pass projectId to the model
         filePath: file.path,
         fileName: file.originalname,
         fileType: file.mimetype,
         fileSize: file.size,
-        extractedText
+        extractedText,
+        summary // Pass the generated summary
       },
       (err, document) => {
         if (err) {
@@ -69,17 +97,27 @@ const uploadDocument = asyncHandler(async (req, res) => {
  */
 const getUserDocuments = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const { page = 1, limit = 10, fileType } = req.query;
-  
-  // Get user documents
-  DocumentModel.getDocumentsByUserId(
-    userId,
-    {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      fileType
-    },
-    (err, result) => {
+  // Read projectId from query parameters
+  const { page = 1, limit = 10, fileType, projectId } = req.query; 
+
+  // Prepare options for the model function
+  const options = {
+    page: parseInt(page),
+    limit: parseInt(limit),
+    fileType,
+    // Include projectId only if it's provided and valid
+    projectId: projectId ? parseInt(projectId, 10) : undefined 
+  };
+
+  // Validate projectId if present
+  if (projectId && isNaN(options.projectId)) {
+     return res.status(400).json({ message: 'Invalid Project ID format.' });
+  }
+
+  // TODO: Optional - If projectId is provided, verify user has access to this project
+
+  // Get user documents, potentially filtered by projectId
+  DocumentModel.getDocumentsByUserId(userId, options, (err, result) => {
       if (err) {
         console.error('Get user documents error:', err);
         return res.status(500).json({ message: 'Erreur lors de la récupération des documents' });
@@ -284,10 +322,14 @@ const updateExtractedText = asyncHandler(async (req, res) => {
       return res.status(403).json({ message: 'Accès non autorisé' });
     }
     
-    // Update document
+    // Note: This function only updates extractedText. 
+    // If manual text update should also trigger summary regeneration, 
+    // this function would need modification similar to uploadDocument.
+    // For now, we only update the text as requested by the route.
+    // If summary needs update too, add it here: { extractedText, summary: newSummary }
     DocumentModel.updateDocument(
       documentId,
-      { extractedText },
+      { extractedText, summary: document.summary }, // Keep existing summary for now
       (err, updatedDocument) => {
         if (err) {
           console.error('Update extracted text error:', err);

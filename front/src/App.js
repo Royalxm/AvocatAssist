@@ -7,6 +7,7 @@ import './App.css';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import AdminLayout from './layouts/AdminLayout';
+import ChatLayout from './layouts/ChatLayout'; // Import the new ChatLayout
 
 // Public Pages
 import LandingPage from './pages/public/LandingPage';
@@ -25,6 +26,8 @@ const ClientTransactions = lazy(() => import('./pages/client/Transactions'));
 const ClientSubscription = lazy(() => import('./pages/client/Subscription'));
 const ClientAiAssistant = lazy(() => import('./pages/client/AiAssistant'));
 const ClientTemplates = lazy(() => import('./pages/client/Templates'));
+const CreateProject = lazy(() => import('./pages/client/CreateProject')); // Import CreateProject
+const QuickAiAssistant = lazy(() => import('./pages/client/QuickAiAssistant')); // Import QuickAiAssistant
 
 // Lawyer Pages
 const LawyerDashboard = lazy(() => import('./pages/lawyer/Dashboard'));
@@ -134,8 +137,35 @@ function App() {
           <Route path="proposals" element={<ClientProposals />} />
           <Route path="transactions" element={<ClientTransactions />} />
           <Route path="subscription" element={<ClientSubscription />} />
-          <Route path="ai-assistant" element={<ClientAiAssistant />} />
+          <Route path="ai-assistant" element={<QuickAiAssistant />} />
+        </Route>
+        
+        {/* Chat routes with ChatLayout */}
+        <Route path="/client/chats" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <ChatLayout />
+          </ProtectedRoute>
+        }>
+          <Route path=":chatId" element={<ClientAiAssistant />} /> {/* Route for specific chat */}
+        </Route>
+        
+        {/* Project-based chat routes with ChatLayout */}
+        <Route path="/client/dossier" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <ChatLayout />
+          </ProtectedRoute>
+        }>
+          <Route path=":projectId" element={<ClientAiAssistant />} /> {/* Route for project-based chat */}
+        </Route>
+        
+        {/* Additional client routes */}
+        <Route path="/client" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <MainLayout />
+          </ProtectedRoute>
+        }>
           <Route path="templates" element={<ClientTemplates />} />
+          <Route path="projects/new" element={<CreateProject />} /> {/* Add route for creating projects */}
         </Route>
         
         {/* Lawyer routes */}

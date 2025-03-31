@@ -37,6 +37,17 @@ router.get(
 );
 
 /**
+ * @route GET /api/users/stats
+ * @desc Get dashboard stats for the logged-in user
+ * @access Private
+ */
+router.get(
+  '/stats',
+  auth,
+  userController.getUserStats
+);
+
+/**
  * @route GET /api/users/:id
  * @desc Get user by ID
  * @access Private

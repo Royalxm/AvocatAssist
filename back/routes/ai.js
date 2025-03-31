@@ -25,7 +25,13 @@ router.post(
     body('documentIds')
       .optional()
       .isArray()
-      .withMessage('Les IDs de documents doivent être un tableau')
+      .withMessage('Les IDs de documents doivent être un tableau'),
+    
+    body('chatId') // Add validation for chatId
+      .notEmpty()
+      .withMessage('L\'ID du chat est requis')
+      .isInt()
+      .withMessage('L\'ID du chat doit être un nombre entier')
   ],
   aiController.askQuestion
 );

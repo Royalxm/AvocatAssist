@@ -53,6 +53,26 @@ exports.createProposal = (proposalData, callback) => {
 };
 
 /**
+ * Count proposals related to a client's legal requests
+ * @param {Number} clientId - Client ID
+ * @param {Function} callback - Callback function
+ */
+exports.countByClientId = (clientId, callback) => {
+  const query = `
+    SELECT COUNT(p.id) as total 
+    FROM Proposals p
+    JOIN LegalRequests lr ON p.requestId = lr.id
+    WHERE lr.clientId = ?
+  `;
+  db.get(query, [clientId], (err, result) => {
+    if (err) {
+      return callback(err);
+    }
+    callback(null, result.total || 0);
+  });
+};
+
+/**
  * Get proposal by ID
  * @param {Number} id - Proposal ID
  * @param {Function} callback - Callback function

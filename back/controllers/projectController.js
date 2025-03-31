@@ -1,4 +1,5 @@
 const ProjectModel = require('../models/ProjectModel');
+const ChatModel = require('../models/ChatModel'); // Import ChatModel
 const DocumentModel = require('../models/DocumentModel');
 
 /**
@@ -7,7 +8,8 @@ const DocumentModel = require('../models/DocumentModel');
  * @param {Object} res - Express response object
  */
 exports.createProject = (req, res) => {
-  const { title, description } = req.body;
+  // Add type to destructuring
+  const { title, description, type } = req.body;
   const userId = req.user.id;
   
   // Validate input
@@ -23,9 +25,10 @@ exports.createProject = (req, res) => {
     {
       userId,
       title,
-      description
+      description,
+      type // Pass type to model
     },
-    (err, result) => {
+    async (err, projectResult) => { // Make callback async
       if (err) {
         console.error('Erreur lors de la création du projet:', err.message);
         return res.status(500).json({
@@ -33,12 +36,34 @@ exports.createProject = (req, res) => {
           message: 'Erreur lors de la création du projet'
         });
       }
-      
-      res.status(201).json({
-        success: true,
-        message: 'Projet créé avec succès',
-        projectId: result.projectId
-      });
+
+      const projectId = projectResult.projectId;
+
+      // Now, create the associated chat
+      try {
+        const chatResult = await ChatModel.create(userId, {
+          projectId: projectId,
+          title: `Chat for ${title}`
+        }); // Use project title for chat title
+
+        res.status(201).json({
+          success: true,
+          message: 'Projet et chat associé créés avec succès',
+          projectId: projectId,
+          chatId: chatResult.id // Include chatId in the response
+        });
+
+      } catch (chatErr) {
+        console.error('Erreur lors de la création du chat associé:', chatErr.message);
+        // Consider if we should rollback project creation or just report the chat error
+        // For now, report that project was created but chat failed
+        return res.status(500).json({
+          success: false, // Or maybe true, but with a warning? Depends on desired behavior.
+          message: 'Projet créé, mais erreur lors de la création du chat associé.',
+          projectId: projectId, // Still return projectId
+          error: chatErr.message
+        });
+      }
     }
   );
 };
@@ -77,22 +102,12 @@ exports.getProjectById = (req, res) => {
       });
     }
     
-    // Get project documents
-    ProjectModel.getProjectDocuments(id, (err, documents) => {
-      if (err) {
-        console.error('Erreur lors de la récupération des documents du projet:', err.message);
-        return res.status(500).json({
-          success: false,
-          message: 'Erreur lors de la récupération des documents du projet'
-        });
-      }
-      
-      project.documents = documents;
-      
-      res.status(200).json({
-        success: true,
-        project
-      });
+    // Documents are no longer fetched here; they should be fetched via DocumentModel routes/controller
+    // Remove the ProjectModel.getProjectDocuments call
+    
+    res.status(200).json({
+      success: true,
+      project // Return project data without documents embedded
     });
   });
 };
@@ -131,7 +146,8 @@ exports.getUserProjects = (req, res) => {
  */
 exports.updateProject = (req, res) => {
   const { id } = req.params;
-  const { title, description } = req.body;
+  // Add type to destructuring
+  const { title, description, type } = req.body;
   const userId = req.user.id;
   
   // Check if project exists and belongs to user
@@ -165,7 +181,8 @@ exports.updateProject = (req, res) => {
       id,
       {
         title,
-        description
+        description,
+        type // Pass type to model
       },
       (err, result) => {
         if (err) {
@@ -240,167 +257,7 @@ exports.deleteProject = (req, res) => {
   });
 };
 
-/**
- * Add document to project
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-exports.addDocumentToProject = (req, res) => {
-  const { id } = req.params;
-  const { documentId } = req.body;
-  const userId = req.user.id;
-  
-  // Validate input
-  if (!documentId) {
-    return res.status(400).json({
-      success: false,
-      message: 'Veuillez fournir l\'ID du document'
-    });
-  }
-  
-  // Check if project exists and belongs to user
-  ProjectModel.getProjectById(id, (err, project) => {
-    if (err) {
-      console.error('Erreur lors de la récupération du projet:', err.message);
-      
-      if (err.message === 'Projet non trouvé') {
-        return res.status(404).json({
-          success: false,
-          message: 'Projet non trouvé'
-        });
-      }
-      
-      return res.status(500).json({
-        success: false,
-        message: 'Erreur lors de la récupération du projet'
-      });
-    }
-    
-    // Check if project belongs to user
-    if (project.userId !== userId && !['support', 'manager'].includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Accès non autorisé à ce projet'
-      });
-    }
-    
-    // Check if document exists and belongs to user
-    DocumentModel.getDocumentById(documentId, (err, document) => {
-      if (err) {
-        console.error('Erreur lors de la récupération du document:', err.message);
-        
-        if (err.message === 'Document non trouvé') {
-          return res.status(404).json({
-            success: false,
-            message: 'Document non trouvé'
-          });
-        }
-        
-        return res.status(500).json({
-          success: false,
-          message: 'Erreur lors de la récupération du document'
-        });
-      }
-      
-      // Check if document belongs to user
-      if (document.userId !== userId && !['support', 'manager'].includes(req.user.role)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Accès non autorisé à ce document'
-        });
-      }
-      
-      // Add document to project
-      ProjectModel.addDocumentToProject(id, documentId, (err, result) => {
-        if (err) {
-          console.error('Erreur lors de l\'ajout du document au projet:', err.message);
-          
-          if (err.message === 'Le document n\'appartient pas à l\'utilisateur du projet') {
-            return res.status(400).json({
-              success: false,
-              message: 'Le document n\'appartient pas à l\'utilisateur du projet'
-            });
-          }
-          
-          return res.status(500).json({
-            success: false,
-            message: 'Erreur lors de l\'ajout du document au projet'
-          });
-        }
-        
-        res.status(200).json({
-          success: true,
-          message: 'Document ajouté au projet avec succès',
-          projectId: result.projectId,
-          documentId: result.documentId
-        });
-      });
-    });
-  });
-};
-
-/**
- * Remove document from project
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-exports.removeDocumentFromProject = (req, res) => {
-  const { id, documentId } = req.params;
-  const userId = req.user.id;
-  
-  // Check if project exists and belongs to user
-  ProjectModel.getProjectById(id, (err, project) => {
-    if (err) {
-      console.error('Erreur lors de la récupération du projet:', err.message);
-      
-      if (err.message === 'Projet non trouvé') {
-        return res.status(404).json({
-          success: false,
-          message: 'Projet non trouvé'
-        });
-      }
-      
-      return res.status(500).json({
-        success: false,
-        message: 'Erreur lors de la récupération du projet'
-      });
-    }
-    
-    // Check if project belongs to user
-    if (project.userId !== userId && !['support', 'manager'].includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Accès non autorisé à ce projet'
-      });
-    }
-    
-    // Remove document from project
-    ProjectModel.removeDocumentFromProject(id, documentId, (err, result) => {
-      if (err) {
-        console.error('Erreur lors de la suppression du document du projet:', err.message);
-        
-        if (err.message === 'Document non trouvé dans ce projet') {
-          return res.status(404).json({
-            success: false,
-            message: 'Document non trouvé dans ce projet'
-          });
-        }
-        
-        return res.status(500).json({
-          success: false,
-          message: 'Erreur lors de la suppression du document du projet'
-        });
-      }
-      
-      res.status(200).json({
-        success: true,
-        message: 'Document supprimé du projet avec succès',
-        projectId: result.projectId,
-        documentId: result.documentId
-      });
-    });
-  });
-};
+// Removed addDocumentToProject and removeDocumentFromProject as they are obsolete
 
 /**
  * Search projects

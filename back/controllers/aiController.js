@@ -1,8 +1,9 @@
 const { validationResult } = require('express-validator');
 const OpenRouterClient = require('../utils/openRouter');
-const QueryModel = require('../models/QueryModel');
 const DocumentModel = require('../models/DocumentModel');
 const UserModel = require('../models/UserModel');
+const ChatModel = require('../models/ChatModel'); // Added
+const MessageModel = require('../models/MessageModel'); // Added
 const { AppError, asyncHandler } = require('../middleware/error');
 
 /**
@@ -17,90 +18,118 @@ const askQuestion = asyncHandler(async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
   
-  const { question, documentIds } = req.body;
+  // chatId is required
+  const { question, chatId: requestedChatId } = req.body; 
   const userId = req.user.id;
   
-  try {
+  if (!requestedChatId) {
+    return res.status(400).json({ message: 'Chat ID is required.' });
+  }
+  const chatId = parseInt(requestedChatId, 10);
+  if (isNaN(chatId)) {
+     return res.status(400).json({ message: 'Invalid Chat ID format.' });
+  }
+
     // Check if user has enough tokens
     // For simplicity, we'll assume each question costs 10 tokens
     const tokenCost = 10;
     
     // Get user
-    UserModel.getUserById(userId, async (err, user) => {
-      if (err) {
-        console.error('Get user error:', err);
-        return res.status(500).json({ message: 'Erreur lors de la récupération de l\'utilisateur' });
-      }
-      
-      // Check if user has enough tokens
-      if (user.creditBalance < tokenCost) {
-        return res.status(400).json({ message: 'Solde de jetons insuffisant' });
-      }
-      
-      // Get related documents if provided
-      let documents = [];
-      if (documentIds && documentIds.length > 0) {
-        // Get documents
-        for (const docId of documentIds) {
-          await new Promise((resolve, reject) => {
-            DocumentModel.getDocumentById(docId, (err, doc) => {
-              if (err) {
-                console.error('Get document error:', err);
-                return reject(err);
-              }
-              
-              if (doc && doc.userId === userId) {
-                documents.push(doc);
-              }
-              
-              resolve();
-            });
-          });
-        }
-      }
-      
-      // Generate response
-      const response = await OpenRouterClient.generateLegalAdvice(question, documents);
-      
-      // Save query to database
-      QueryModel.createQuery(
-        {
-          userId,
-          question,
-          response,
-          tokensUsed: tokenCost
-        },
-        (err, query) => {
-          if (err) {
-            console.error('Create query error:', err);
-            return res.status(500).json({ message: 'Erreur lors de l\'enregistrement de la requête' });
-          }
-          
-          // Update user token balance
-          UserModel.updateCreditBalance(
-            userId,
-            tokenCost,
-            'debit',
-            'Utilisation de l\'assistant IA',
-            (err, result) => {
-              if (err) {
-                console.error('Update credit balance error:', err);
-                return res.status(500).json({ message: 'Erreur lors de la mise à jour du solde de jetons' });
-              }
-              
-              res.status(200).json({
-                query,
-                newBalance: result.newBalance
-              });
-            }
-          );
-        }
-      );
+    const user = await new Promise((resolve, reject) => {
+      UserModel.getUserById(userId, (err, user) => {
+        if (err) return reject(new AppError('Erreur lors de la récupération de l\'utilisateur', 500));
+        if (!user) return reject(new AppError('Utilisateur non trouvé', 404));
+        resolve(user);
+      });
     });
-  } catch (error) {
-    console.error('AI error:', error);
-    res.status(500).json({ message: 'Erreur lors de la génération de la réponse' });
-  }
+
+    if (user.creditBalance < tokenCost) {
+      throw new AppError('Solde de jetons insuffisant', 400);
+    }
+
+    // --- Chat Handling ---
+    const chat = await ChatModel.findById(chatId, userId);
+    if (!chat) {
+      throw new AppError('Chat non trouvé ou accès refusé.', 404);
+    }
+
+    // --- Save User Message ---
+    await MessageModel.create(chatId, 'user', question);
+    
+    // Initialize documents array
+    let projectDocuments = [];
+    
+    // If chat is associated with a project, get its documents
+    if (chat.projectId) {
+      projectDocuments = await new Promise((resolve, reject) => {
+        DocumentModel.getDocumentsByProjectId(chat.projectId, (err, docs) => {
+          if (err) {
+            console.error('Error fetching project documents:', err);
+            // Continue without documents if there's an error, or reject if critical
+            return reject(new AppError('Erreur lors de la récupération des documents du projet.', 500));
+          }
+          resolve(docs || []);
+        });
+      });
+    }
+    // For conversation-based chats (chat.conversationId), we don't need to fetch documents
+    // --- Generate AI Response ---
+    // Pass the fetched project documents to the AI client (empty array for conversation-based chats)
+    let aiResponseText = await OpenRouterClient.generateLegalAdvice(question, projectDocuments); // Changed to let
+
+      // --- Save AI Message ---
+      const aiMessage = await MessageModel.create(chatId, 'ai', aiResponseText, tokenCost);
+
+      // --- Update User Token Balance ---
+      const updateResult = await new Promise((resolve, reject) => {
+        UserModel.updateCreditBalance(
+          userId,
+          tokenCost,
+          'debit',
+          `Utilisation IA (Chat ${chatId})`,
+          (err, result) => {
+            if (err) return reject(new AppError('Erreur lors de la mise à jour du solde de jetons', 500));
+            resolve(result);
+          }
+        );
+      });
+
+      // --- Extract suggested questions if present ---
+      let suggestedQuestions = [];
+      const suggestedQuestionsMatch = aiResponseText.match(/QUESTIONS_SUGGÉRÉES:\s*\n((?:(?:\d+\.\s*.*?)(?:\n|$))+)/);
+      
+      if (suggestedQuestionsMatch && suggestedQuestionsMatch[1]) {
+        // Extract the questions from the matched text
+        const questionsText = suggestedQuestionsMatch[1];
+        const questionMatches = questionsText.match(/\d+\.\s*(.*?)(?:\n|$)/g);
+        
+        if (questionMatches) {
+          suggestedQuestions = questionMatches.map(q => {
+            // Remove the number and trim
+            return q.replace(/^\d+\.\s*/, '').trim();
+          }).filter(q => q); // Filter out empty strings
+        }
+        
+        // Remove the suggested questions section from the response text
+        // This keeps the UI cleaner by not showing the QUESTIONS_SUGGÉRÉES section
+        aiResponseText = aiResponseText.replace(/QUESTIONS_SUGGÉRÉES:[\s\S]*$/, '').trim();
+        
+        // Update the AI message in the database with the cleaned response
+        await MessageModel.update(aiMessage.id, aiResponseText);
+      }
+      
+      // --- Send Response ---
+      res.status(200).json({
+        chatId: chatId, // Return the chat ID (new or existing)
+        response: aiResponseText,
+        messageId: aiMessage.id, // Return the ID of the AI message
+        newBalance: updateResult.newBalance,
+        suggestedQuestions: suggestedQuestions // Include the extracted questions
+      });
+
+    // Removed the redundant try...catch block.
+    // asyncHandler will handle errors and pass them to the central error handler.
+  // Removed the outer catch block. asyncHandler will handle errors.
 });
 
 /**

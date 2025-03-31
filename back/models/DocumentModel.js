@@ -15,16 +15,17 @@ const DocumentModel = {
    * @param {Function} callback - Callback function
    */
   createDocument: (documentData, callback) => {
-    const { userId, filePath, fileName, fileType, fileSize, extractedText } = documentData;
+    // Include projectId and summary in the destructuring and query
+    const { userId, projectId, filePath, fileName, fileType, fileSize, extractedText, summary } = documentData;
     
     const sql = `
-      INSERT INTO Documents (userId, filePath, fileName, fileType, fileSize, extractedText)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO Documents (userId, projectId, filePath, fileName, fileType, fileSize, extractedText, summary)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     db.run(
       sql,
-      [userId, filePath, fileName, fileType, fileSize, extractedText || null],
+      [userId, projectId, filePath, fileName, fileType, fileSize, extractedText || null, summary || null],
       function(err) {
         if (err) {
           return callback(err);
@@ -42,8 +43,9 @@ const DocumentModel = {
    * @param {Function} callback - Callback function
    */
   getDocumentById: (id, callback) => {
+    // Select projectId as well
     const sql = `
-      SELECT d.id, d.userId, d.filePath, d.fileName, d.fileType, d.fileSize, d.extractedText, d.uploadedAt,
+      SELECT d.id, d.userId, d.projectId, d.filePath, d.fileName, d.fileType, d.fileSize, d.extractedText, d.summary, d.uploadedAt,
              u.name as userName, u.email as userEmail
       FROM Documents d
       JOIN Users u ON d.userId = u.id
@@ -67,27 +69,38 @@ const DocumentModel = {
    * Get documents by user ID
    * @param {Number} userId - User ID
    * @param {Object} options - Query options
-   * @param {Function} callback - Callback function
-   */
-  getDocumentsByUserId: (userId, options = {}, callback) => {
-    const { page = 1, limit = 10, fileType } = options;
-    const offset = (page - 1) * limit;
-    
-    let sql = `
-      SELECT id, userId, filePath, fileName, fileType, fileSize, uploadedAt
-      FROM Documents
-      WHERE userId = ?
-    `;
-    
-    const params = [userId];
-    
-    // Add file type filter
-    if (fileType) {
-      sql += ' AND fileType = ?';
-      params.push(fileType);
-    }
-    
-    // Add pagination
+ * @param {Function} callback - Callback function
+ */
+getDocumentsByUserId: (userId, options = {}, callback) => {
+  // Add projectId to options destructuring
+  const { page = 1, limit = 10, fileType, projectId } = options; 
+  const offset = (page - 1) * limit;
+  
+  // Select projectId as well
+  let sql = `
+    SELECT id, userId, projectId, filePath, fileName, fileType, fileSize, summary, uploadedAt
+    FROM Documents
+    WHERE userId = ?
+  `;
+  
+  const params = [userId];
+  const countParams = [userId]; // Separate params for count query
+
+  // Add projectId filter if provided
+  if (projectId) {
+    sql += ' AND projectId = ?';
+    params.push(projectId);
+    countParams.push(projectId); // Add to count params as well
+  }
+  
+  // Add file type filter
+  if (fileType) {
+    sql += ' AND fileType = ?';
+    params.push(fileType);
+    countParams.push(fileType); // Add to count params as well
+  }
+  
+  // Add pagination
     sql += ' ORDER BY uploadedAt DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     
@@ -96,16 +109,16 @@ const DocumentModel = {
         return callback(err);
       }
       
-      // Get total count
-      let countSql = 'SELECT COUNT(*) as count FROM Documents WHERE userId = ?';
-      const countParams = [userId];
-      
-      if (fileType) {
-        countSql += ' AND fileType = ?';
-        countParams.push(fileType);
-      }
-      
-      db.get(countSql, countParams, (err, result) => {
+  // Get total count - build query based on filters
+  let countSql = 'SELECT COUNT(*) as count FROM Documents WHERE userId = ?';
+  if (projectId) {
+    countSql += ' AND projectId = ?';
+  }
+  if (fileType) {
+    countSql += ' AND fileType = ?';
+  }
+  
+  db.get(countSql, countParams, (err, result) => {
         if (err) {
           return callback(err);
         }
@@ -133,15 +146,38 @@ const DocumentModel = {
    * @param {Function} callback - Callback function
    */
   updateDocument: (id, documentData, callback) => {
-    const { extractedText } = documentData;
+    // Include summary and potentially projectId in the update (though projectId usually shouldn't change)
+    const { extractedText, summary, projectId } = documentData;
     
-    const sql = `
-      UPDATE Documents
-      SET extractedText = ?
-      WHERE id = ?
-    `;
+    let sql = 'UPDATE Documents SET ';
+    const params = [];
     
-    db.run(sql, [extractedText, id], function(err) {
+    if (extractedText !== undefined) {
+      sql += 'extractedText = ?, ';
+      params.push(extractedText);
+    }
+    if (summary !== undefined) {
+      sql += 'summary = ?, ';
+      params.push(summary);
+    }
+    // Add projectId update if needed, though less common
+    if (projectId !== undefined) { 
+      sql += 'projectId = ?, ';
+      params.push(projectId);
+    }
+
+    // Remove trailing comma and space if fields were added
+    if (params.length > 0) {
+      sql = sql.slice(0, -2); 
+    } else {
+      // No fields to update
+      return callback(null, { documentId: id, changes: 0 });
+    }
+
+    sql += ' WHERE id = ?';
+    params.push(id);
+    
+    db.run(sql, params, function(err) {
       if (err) {
         return callback(err);
       }
@@ -212,8 +248,9 @@ const DocumentModel = {
     const { page = 1, limit = 10 } = options;
     const offset = (page - 1) * limit;
     
+    // Select projectId as well
     const sql = `
-      SELECT id, userId, filePath, fileName, fileType, fileSize, uploadedAt
+      SELECT id, userId, projectId, filePath, fileName, fileType, fileSize, summary, uploadedAt
       FROM Documents
       WHERE userId = ? AND (
         fileName LIKE ? OR
@@ -270,8 +307,9 @@ const DocumentModel = {
     const { page = 1, limit = 10, userId, fileType } = options;
     const offset = (page - 1) * limit;
     
+    // Select projectId as well
     let sql = `
-      SELECT d.id, d.userId, d.filePath, d.fileName, d.fileType, d.fileSize, d.uploadedAt,
+      SELECT d.id, d.userId, d.projectId, d.filePath, d.fileName, d.fileType, d.fileSize, d.summary, d.uploadedAt,
              u.name as userName, u.email as userEmail
       FROM Documents d
       JOIN Users u ON d.userId = u.id
@@ -336,6 +374,27 @@ const DocumentModel = {
           }
         });
       });
+    });
+  },
+
+  /**
+   * Get documents by project ID
+   * @param {Number} projectId - Project ID
+   * @param {Function} callback - Callback function
+   */
+  getDocumentsByProjectId: (projectId, callback) => {
+    const sql = `
+      SELECT id, userId, projectId, filePath, fileName, fileType, fileSize, extractedText, summary, uploadedAt
+      FROM Documents
+      WHERE projectId = ?
+      ORDER BY uploadedAt DESC
+    `;
+    
+    db.all(sql, [projectId], (err, documents) => {
+      if (err) {
+        return callback(err);
+      }
+      callback(null, documents);
     });
   }
 };

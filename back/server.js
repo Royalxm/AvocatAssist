@@ -40,7 +40,8 @@ app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/api-settings', require('./routes/apiSettings'));
 app.use('/api/templates', require('./routes/templates'));
 app.use('/api/projects', require('./routes/projects'));
-
+app.use('/api/chats', require('./routes/chats'));
+app.use('/api/conversations', require('./routes/conversations')); // Add conversation routes
 // API health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });
