@@ -23,7 +23,23 @@ exports.getUserChats = async (req, res, next) => {
 
     // Pass userId and options to the model
     const chats = await ChatModel.findByUserId(userId, options);
-    res.status(200).json(chats);
+    
+    // Safely parse suggestions for each chat
+    const formattedChats = chats.map(chat => {
+        let suggestions = [];
+        if (chat.lastSuggestedQuestions) {
+            try {
+                suggestions = JSON.parse(chat.lastSuggestedQuestions);
+                if (!Array.isArray(suggestions)) suggestions = [];
+            } catch (e) {
+                console.error(`Error parsing suggestions for chat ${chat.id}:`, e);
+                suggestions = [];
+            }
+        }
+        return { ...chat, lastSuggestedQuestions: suggestions };
+    });
+
+    res.status(200).json(formattedChats);
   } catch (error) {
     next(error);
   }
@@ -44,8 +60,21 @@ exports.getChatById = async (req, res, next) => {
       return res.status(404).json({ message: 'Chat not found or access denied.' });
     }
 
+    // Safely parse suggestions
+    let suggestions = [];
+    if (chat.lastSuggestedQuestions) {
+        try {
+            suggestions = JSON.parse(chat.lastSuggestedQuestions);
+            if (!Array.isArray(suggestions)) suggestions = [];
+        } catch (e) {
+            console.error(`Error parsing suggestions for chat ${chat.id}:`, e);
+            suggestions = [];
+        }
+    }
+
     const messages = await MessageModel.findByChatId(chatId);
-    res.status(200).json({ ...chat, messages });
+    // Include parsed suggestions in the response
+    res.status(200).json({ ...chat, lastSuggestedQuestions: suggestions, messages }); 
   } catch (error) {
     next(error);
   }

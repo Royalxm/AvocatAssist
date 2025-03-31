@@ -57,6 +57,7 @@ exports.getProjectsByUserId = (userId, page, limit, callback) => {
     FROM Projects p
     LEFT JOIN Chats c ON p.id = c.projectId
     WHERE p.userId = ?
+    GROUP BY p.id -- Add GROUP BY to prevent duplicates from JOIN
     ORDER BY p.createdAt DESC
     LIMIT ? OFFSET ?
   `;

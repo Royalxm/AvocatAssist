@@ -96,7 +96,8 @@ class ConversationModel {
         }
         
         if (!conversation) {
-          return reject(new Error('Conversation not found'));
+          // Use reject for errors, resolve(null) for not found
+          return resolve(null); 
         }
         
         // Then get the messages for this conversation
@@ -165,6 +166,26 @@ class ConversationModel {
             resolve(this.formatConversation(conversation));
           }
         );
+      });
+    });
+  }
+
+  /**
+   * Update last suggested questions for a conversation
+   * @param {number} conversationId - Conversation ID
+   * @param {Array<string>} suggestedQuestions - Array of suggested questions
+   * @returns {Promise<boolean>} Success status
+   */
+  static updateLastSuggestedQuestions(conversationId, suggestedQuestions) {
+    return new Promise((resolve, reject) => {
+      const suggestionsJson = JSON.stringify(suggestedQuestions);
+      const sql = 'UPDATE Conversations SET lastSuggestedQuestions = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?';
+      db.run(sql, [suggestionsJson, conversationId], function (err) {
+        if (err) {
+          console.error('Error updating conversation suggestions:', err.message);
+          return reject(err);
+        }
+        resolve(this.changes > 0); // Returns true if a row was updated
       });
     });
   }
@@ -386,6 +407,20 @@ class ConversationModel {
   static formatConversation(conversation) {
     if (!conversation) return null;
     
+    // Safely parse lastSuggestedQuestions
+    let suggestions = [];
+    if (conversation.lastSuggestedQuestions) {
+      try {
+        suggestions = JSON.parse(conversation.lastSuggestedQuestions);
+        if (!Array.isArray(suggestions)) {
+          suggestions = []; // Ensure it's an array
+        }
+      } catch (e) {
+        console.error(`Error parsing suggestions for conversation ${conversation.id}:`, e);
+        suggestions = []; // Default to empty array on error
+      }
+    }
+
     return {
       id: conversation.id,
       userId: conversation.user_id,
@@ -393,7 +428,8 @@ class ConversationModel {
       messageCount: conversation.message_count || 0,
       lastMessageAt: conversation.last_message_at || null,
       createdAt: conversation.created_at,
-      updatedAt: conversation.updated_at
+      updatedAt: conversation.updated_at,
+      lastSuggestedQuestions: suggestions // Return parsed array
     };
   }
   

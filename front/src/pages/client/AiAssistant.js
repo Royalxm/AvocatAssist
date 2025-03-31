@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
 
 const AiAssistant = () => {
   const { projectId, chatId } = useParams();
@@ -27,14 +28,15 @@ const AiAssistant = () => {
   const [error, setError] = useState(null);
   const [chatError, setChatError] = useState(null);
   
-  // Suggested messages
-  const [suggestedMessages, setSuggestedMessages] = useState([
+  // Suggested messages - Initial default state
+  const defaultSuggestions = [
     "Quelles sont les étapes pour créer une entreprise en France ?",
     "Pouvez-vous m'expliquer les différents types de contrats de travail ?",
     "Quels sont mes droits en tant que locataire ?",
     "Comment protéger ma propriété intellectuelle ?",
     "Quelles sont les implications juridiques d'un divorce ?"
-  ]);
+  ];
+  const [suggestedMessages, setSuggestedMessages] = useState(defaultSuggestions);
 
   // Editing state
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -63,6 +65,12 @@ const AiAssistant = () => {
         if (existingChats && existingChats.length > 0) {
           setProjectChatId(existingChats[0].id);
           setProjectTitle(existingChats[0].title || `Projet ${projectId}`);
+          // Set suggestions from the fetched chat data if available
+          if (existingChats[0].lastSuggestedQuestions && existingChats[0].lastSuggestedQuestions.length > 0) {
+            setSuggestedMessages(existingChats[0].lastSuggestedQuestions);
+          } else {
+            setSuggestedMessages(defaultSuggestions); // Reset to default if none saved
+          }
         } else {
           const createResponse = await axios.post('/chats', {
             projectId: projectId,
@@ -72,6 +80,7 @@ const AiAssistant = () => {
           if (newChat && newChat.id) {
             setProjectChatId(newChat.id);
             setProjectTitle(newChat.title);
+            setSuggestedMessages(defaultSuggestions); // Reset to default for new chat
           } else {
             throw new Error('Failed to create chat for the project.');
           }
@@ -89,7 +98,7 @@ const AiAssistant = () => {
     }
   }, [projectId]);
   
-  // Fetch messages
+  // Fetch messages and potentially update suggestions
   useEffect(() => {
     const fetchMessages = async () => {
       if (!projectChatId) {
@@ -101,7 +110,21 @@ const AiAssistant = () => {
       setError(null);
       try {
         const response = await axios.get(`/chats/${projectChatId}`);
-        setMessages(response.data.messages || []);
+        const chatData = response.data;
+        setMessages(chatData.messages || []);
+        
+        // Update suggestions based on the latest fetched chat data
+        if (chatData.lastSuggestedQuestions && chatData.lastSuggestedQuestions.length > 0) {
+          setSuggestedMessages(chatData.lastSuggestedQuestions);
+        } else {
+          // Only generate fallback if there are messages, otherwise keep default
+          if (chatData.messages && chatData.messages.length > 0) {
+             generateFallbackSuggestions(); 
+          } else {
+             setSuggestedMessages(defaultSuggestions);
+          }
+        }
+
       } catch (err) {
         console.error(`Error fetching messages for chat ${projectChatId}:`, err);
         setChatError(err.response?.data?.message || `Failed to load messages for conversation.`);
@@ -185,6 +208,7 @@ const AiAssistant = () => {
           return [...newMessages, userMessage, aiMessage];
       });
 
+      // Update suggestions based on AI response
       if (aiResponseData.suggestedQuestions && aiResponseData.suggestedQuestions.length > 0) {
         setSuggestedMessages(aiResponseData.suggestedQuestions);
       } else {
@@ -451,7 +475,8 @@ const AiAssistant = () => {
                         </div>
                       ) : (
                         <>
-                          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                          {/* Use ReactMarkdown to render content */}
+                          <ReactMarkdown className="prose prose-sm max-w-none">{message.content}</ReactMarkdown>
                           <div className="text-xs opacity-70 mt-1 text-right">
                             {formatTime(message.updatedAt || message.timestamp)}
                             {message.updatedAt && message.updatedAt !== message.timestamp && 
@@ -505,122 +530,104 @@ const AiAssistant = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input area */}
-          <div className="border-t border-gray-200 bg-white">
-            {projectChatId && !isTyping && suggestedMessages.length > 0 && (
-              <div className="p-3 flex flex-wrap gap-2 justify-center">
-                {suggestedMessages.map((message, index) => (
+          {/* Suggested Messages */}
+          {messages.length > 0 && !isTyping && suggestedMessages.length > 0 && (
+            <div className="flex-shrink-0 p-4 border-t">
+              <p className="text-sm font-medium text-gray-600 mb-2">Suggestions :</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedMessages.map((suggestion, index) => (
                   <button
                     key={index}
-                    onClick={() => handleSendMessage(null, message)}
-                    className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 py-1 px-3 rounded-full transition-colors"
+                    onClick={(e) => handleSendMessage(e, suggestion)}
+                    className="px-3 py-1.5 text-sm bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors"
                   >
-                    {message}
+                    {suggestion}
                   </button>
                 ))}
               </div>
-            )}
-            
-            <div className="p-4">
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={projectChatId ? "Posez votre question ici..." : "Chargement de la conversation..."}
-                  className="form-input flex-grow rounded-full px-4 py-2 border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-                  disabled={!projectChatId || isTyping || loadingMessages}
-                />
-                <button
-                  type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white rounded-full p-3 flex items-center justify-center"
-                  disabled={!input.trim() || isTyping || !projectChatId || loadingMessages}
-                  aria-label="Envoyer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                  </svg>
-                </button>
-              </form>
             </div>
+          )}
+
+          {/* Input Area */}
+          <div className="flex-shrink-0 border-t p-4 bg-white">
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Posez votre question juridique ici..."
+                className="flex-grow px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={isTyping || isLoadingProjectChat || loadingMessages}
+              />
+              <button
+                type="submit"
+                className="bg-primary-600 text-white rounded-full p-2 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50"
+                disabled={!input.trim() || isTyping || isLoadingProjectChat || loadingMessages}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </form>
           </div>
         </div>
       </div>
 
-      {/* Documents Sidebar */}
+      {/* Right Sidebar (Documents) */}
       {isProjectMode && (
-        <div className="w-80 h-full bg-white border-l flex flex-col">
+        <div className="w-80 flex-shrink-0 border-l bg-gray-50 flex flex-col h-full">
           <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold flex items-center">
-              <span className="mr-2">📁</span>
-              Documents du dossier
-            </h2>
+            <h2 className="text-lg font-semibold">Documents du Projet</h2>
           </div>
-
-          {/* Upload form */}
-          <div className="p-4 border-b">
-            <h3 className="text-sm font-medium mb-2">Ajouter un document</h3>
-            <form onSubmit={handleUploadDocument} className="space-y-2">
-              <div className="flex flex-col space-y-2">
-                <input
-                  type="file"
-                  id="document"
-                  onChange={handleFileChange}
-                  className="form-input text-sm"
-                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                  disabled={isUploading}
-                />
-                <button
-                  type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white text-sm py-1 px-3 rounded"
-                  disabled={!selectedFile || isUploading}
-                >
-                  {isUploading ? 'Envoi...' : 'Envoyer'}
-                </button>
-              </div>
-              
-              {isUploading && (
-                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                  <div
-                    className="bg-primary-600 h-1.5 rounded-full"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                  <p className="text-xs text-gray-500 mt-1">{uploadProgress}% téléchargé</p>
+          <div className="flex-grow overflow-y-auto p-4 space-y-3">
+            {loadingDocuments ? (
+              <div className="text-center text-gray-500">Chargement des documents...</div>
+            ) : documents.length === 0 ? (
+              <div className="text-center text-gray-400 text-sm">Aucun document dans ce projet.</div>
+            ) : (
+              documents.map(doc => (
+                <div key={doc.id} className="bg-white p-3 rounded shadow-sm border flex items-start space-x-3">
+                  <span className="text-xl mt-1">{getFileIcon(doc.fileType)}</span>
+                  <div className="flex-grow overflow-hidden">
+                    <p className="text-sm font-medium truncate" title={doc.fileName}>{doc.fileName}</p>
+                    <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
+                    <p className="text-xs text-gray-400">Ajouté le: {new Date(doc.uploadDate).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  {/* Add download/view buttons if needed */}
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex-shrink-0 p-4 border-t bg-gray-100">
+            <form onSubmit={handleUploadDocument}>
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="file-upload">
+                Ajouter un document
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+              />
+              {selectedFile && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Fichier sélectionné: {selectedFile.name}
                 </div>
               )}
-              
-              <p className="text-xs text-gray-500">
-                Formats acceptés: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG
-              </p>
+              {isUploading && (
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                  <div className="bg-primary-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={!selectedFile || isUploading}
+                className="mt-3 w-full bg-primary-600 text-white py-2 px-4 rounded hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {isUploading ? `Upload en cours... ${uploadProgress}%` : 'Uploader le document'}
+              </button>
             </form>
-          </div>
-          
-          {/* Documents list */}
-          <div className="flex-grow overflow-y-auto">
-            {loadingDocuments ? (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary-600"></div>
-              </div>
-            ) : documents.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <p>Aucun document dans ce dossier</p>
-                <p className="text-sm mt-2">Ajoutez des documents pour enrichir le contexte de vos conversations avec l'IA</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-gray-200">
-                {documents.map(doc => (
-                  <li key={doc.id} className="p-3 hover:bg-gray-50">
-                    <div className="flex items-center">
-                      <span className="text-xl mr-2">{getFileIcon(doc.fileType)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{doc.fileName}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         </div>
       )}

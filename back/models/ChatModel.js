@@ -84,6 +84,21 @@ class ChatModel {
     });
   }
 
+  // Update last suggested questions for a chat
+  static updateLastSuggestedQuestions(chatId, suggestedQuestions) {
+    return new Promise((resolve, reject) => {
+      const suggestionsJson = JSON.stringify(suggestedQuestions);
+      const sql = 'UPDATE Chats SET lastSuggestedQuestions = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?';
+      db.run(sql, [suggestionsJson, chatId], function (err) {
+        if (err) {
+          console.error('Error updating chat suggestions:', err.message);
+          return reject(err);
+        }
+        resolve(this.changes > 0); // Returns true if a row was updated
+      });
+    });
+  }
+
   // Delete a chat
   static delete(chatId, userId) {
     return new Promise((resolve, reject) => {

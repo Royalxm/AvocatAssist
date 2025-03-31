@@ -15,7 +15,8 @@ class ConversationController {
       const userId = req.user.id;
       const conversations = await ConversationModel.getAllByUser(userId);
       
-      res.status(200).json(conversations);
+      // The model's formatConversation method already handles parsing suggestions
+      res.status(200).json(conversations); 
     } catch (error) {
       console.error('Error fetching conversations:', error);
       res.status(500).json({ message: 'Failed to fetch conversations', error: error.message });
@@ -33,14 +34,20 @@ class ConversationController {
       const userId = req.user.id;
       
       const conversation = await ConversationModel.getById(id, userId);
+
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversation not found or access denied.' });
+      }
       
-      res.status(200).json(conversation);
+      // The model's formatConversation method already handles parsing suggestions
+      res.status(200).json(conversation); 
     } catch (error) {
       console.error('Error fetching conversation:', error);
       
-      if (error.message === 'Conversation not found') {
-        return res.status(404).json({ message: 'Conversation not found' });
-      }
+      // Keep the original error check, but the model now resolves null instead of rejecting
+      // if (error.message === 'Conversation not found') {
+      //   return res.status(404).json({ message: 'Conversation not found' });
+      // }
       
       res.status(500).json({ message: 'Failed to fetch conversation', error: error.message });
     }
@@ -145,10 +152,9 @@ class ConversationController {
       }
       
       // First check if the user owns the conversation
-      try {
-        await ConversationModel.getById(id, userId);
-      } catch (error) {
-        return res.status(404).json({ message: 'Conversation not found or not authorized' });
+      const conversationCheck = await ConversationModel.getById(id, userId);
+      if (!conversationCheck) {
+         return res.status(404).json({ message: 'Conversation not found or not authorized' });
       }
       
       const message = await ConversationModel.addMessage({
@@ -171,7 +177,7 @@ class ConversationController {
    */
   static async updateMessage(req, res) {
     try {
-      const { conversationId, messageId } = req.params;
+      const { conversationId, messageId } = req.params; // Note: conversationId isn't strictly needed here by the model but good for routing
       const { content } = req.body;
       const userId = req.user.id;
       
@@ -200,7 +206,7 @@ class ConversationController {
    */
   static async deleteMessage(req, res) {
     try {
-      const { conversationId, messageId } = req.params;
+      const { conversationId, messageId } = req.params; // Note: conversationId isn't strictly needed here by the model but good for routing
       const userId = req.user.id;
       
       await ConversationModel.deleteMessage(messageId, userId);

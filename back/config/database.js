@@ -215,6 +215,7 @@ const initializeDatabase = () => {
         title TEXT,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        lastSuggestedQuestions TEXT, -- Added column for suggestions
         FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE
       )
     `);
@@ -229,6 +230,7 @@ const initializeDatabase = () => {
         title TEXT,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        lastSuggestedQuestions TEXT, -- Added column for suggestions
         FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE,
         FOREIGN KEY(projectId) REFERENCES Projects(id) ON DELETE CASCADE,
         FOREIGN KEY(conversationId) REFERENCES Conversations(id) ON DELETE CASCADE,
@@ -341,7 +343,7 @@ const initializeDatabase = () => {
           'INSERT INTO APISettings (provider, apiKey, endpointUrl, modelName, isDefault) VALUES (?, ?, ?, ?, ?)',
           [
             'openrouter',
-            process.env.OPENROUTER_API_KEY || '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',
+            process.env.OPENROUTER_API_KEY || 'sk-or-v1-xxxxxxxxxxxxxxxxx',
             process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions',
             process.env.OPENROUTER_MODEL || 'openai/gpt-3.5-turbo',
             1

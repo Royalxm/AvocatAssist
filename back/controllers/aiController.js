@@ -3,6 +3,7 @@ const OpenRouterClient = require('../utils/openRouter');
 const DocumentModel = require('../models/DocumentModel');
 const UserModel = require('../models/UserModel');
 const ChatModel = require('../models/ChatModel'); // Added
+const ConversationModel = require('../models/ConversationModel'); // Added for suggestions
 const MessageModel = require('../models/MessageModel'); // Added
 const { AppError, asyncHandler } = require('../middleware/error');
 
@@ -18,7 +19,7 @@ const askQuestion = asyncHandler(async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
   
-  // chatId is required
+  // chatId is required from the request body, which refers to the ID in the Chats table
   const { question, chatId: requestedChatId } = req.body; 
   const userId = req.user.id;
   
@@ -48,6 +49,7 @@ const askQuestion = asyncHandler(async (req, res) => {
     }
 
     // --- Chat Handling ---
+    // Fetch the chat record using the provided chatId
     const chat = await ChatModel.findById(chatId, userId);
     if (!chat) {
       throw new AppError('Chat non trouvé ou accès refusé.', 404);
@@ -73,6 +75,7 @@ const askQuestion = asyncHandler(async (req, res) => {
       });
     }
     // For conversation-based chats (chat.conversationId), we don't need to fetch documents
+    
     // --- Generate AI Response ---
     // Pass the fetched project documents to the AI client (empty array for conversation-based chats)
     let aiResponseText = await OpenRouterClient.generateLegalAdvice(question, projectDocuments); // Changed to let
@@ -94,7 +97,7 @@ const askQuestion = asyncHandler(async (req, res) => {
         );
       });
 
-      // --- Extract suggested questions if present ---
+      // --- Extract and Save suggested questions if present ---
       let suggestedQuestions = [];
       const suggestedQuestionsMatch = aiResponseText.match(/QUESTIONS_SUGGÉRÉES:\s*\n((?:(?:\d+\.\s*.*?)(?:\n|$))+)/);
       
@@ -116,6 +119,20 @@ const askQuestion = asyncHandler(async (req, res) => {
         
         // Update the AI message in the database with the cleaned response
         await MessageModel.update(aiMessage.id, aiResponseText);
+
+        // Save suggestions to the appropriate table (Chats or Conversations)
+        try {
+          if (chat.conversationId) {
+            // This chat is linked to a standalone conversation
+            await ConversationModel.updateLastSuggestedQuestions(chat.conversationId, suggestedQuestions);
+          } else if (chat.projectId) {
+             // This chat is linked to a project (handled via Chats table directly)
+             await ChatModel.updateLastSuggestedQuestions(chatId, suggestedQuestions);
+          }
+        } catch (suggestionSaveError) {
+            console.error("Error saving suggested questions:", suggestionSaveError);
+            // Decide if this error should be fatal or just logged
+        }
       }
       
       // --- Send Response ---

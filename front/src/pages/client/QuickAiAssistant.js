@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
 
 const QuickAiAssistant = () => {
   const { currentUser } = useAuth();
@@ -17,14 +18,15 @@ const QuickAiAssistant = () => {
   const [error, setError] = useState(null);
   const [chatError, setChatError] = useState(null);
   
-  // Suggested messages
-  const [suggestedMessages, setSuggestedMessages] = useState([
+  // Suggested messages - Initial default state
+  const defaultSuggestions = [
     "Quelles sont les étapes pour créer une entreprise en France ?",
     "Pouvez-vous m'expliquer les différents types de contrats de travail ?",
     "Quels sont mes droits en tant que locataire ?",
     "Comment protéger ma propriété intellectuelle ?",
     "Quelles sont les implications juridiques d'un divorce ?"
-  ]);
+  ];
+  const [suggestedMessages, setSuggestedMessages] = useState(defaultSuggestions);
 
   // Editing state
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -40,12 +42,23 @@ const QuickAiAssistant = () => {
       setLoadingConversations(true);
       try {
         const response = await axios.get('/conversations');
-        setConversations(response.data || []);
+        const fetchedConversations = response.data || [];
+        setConversations(fetchedConversations);
         
         // Select the first conversation if available
-        if (response.data && response.data.length > 0) {
-          setSelectedConversationId(response.data[0].id);
-          setConversationTitle(response.data[0].title);
+        if (fetchedConversations.length > 0) {
+          const firstConv = fetchedConversations[0];
+          setSelectedConversationId(firstConv.id);
+          setConversationTitle(firstConv.title);
+          // Set suggestions from the first conversation if available
+          if (firstConv.lastSuggestedQuestions && firstConv.lastSuggestedQuestions.length > 0) {
+            setSuggestedMessages(firstConv.lastSuggestedQuestions);
+          } else {
+            setSuggestedMessages(defaultSuggestions); // Reset to default if none saved
+          }
+        } else {
+          // No conversations, reset suggestions to default
+           setSuggestedMessages(defaultSuggestions);
         }
       } catch (err) {
         console.error('Error fetching conversations:', err);
@@ -63,6 +76,7 @@ const QuickAiAssistant = () => {
     const fetchMessages = async () => {
       if (!selectedConversationId) {
         setMessages([]);
+        setSuggestedMessages(defaultSuggestions); // Reset suggestions if no conversation selected
         return;
       }
       
@@ -72,11 +86,31 @@ const QuickAiAssistant = () => {
       
       try {
         const response = await axios.get(`/conversations/${selectedConversationId}`);
-        setMessages(response.data.messages || []);
+        const conversationData = response.data;
+        
+        if (!conversationData) {
+           throw new Error('Conversation data not found');
+        }
+
+        setMessages(conversationData.messages || []);
+
+        // Update suggestions based on the latest fetched conversation data
+        if (conversationData.lastSuggestedQuestions && conversationData.lastSuggestedQuestions.length > 0) {
+          setSuggestedMessages(conversationData.lastSuggestedQuestions);
+        } else {
+          // Only generate fallback if there are messages, otherwise keep default
+          if (conversationData.messages && conversationData.messages.length > 0) {
+             generateFallbackSuggestions(); 
+          } else {
+             setSuggestedMessages(defaultSuggestions);
+          }
+        }
+
       } catch (err) {
         console.error(`Error fetching messages for conversation ${selectedConversationId}:`, err);
         setChatError(err.response?.data?.message || 'Impossible de charger les messages.');
         setMessages([]);
+        setSuggestedMessages(defaultSuggestions); // Reset suggestions on error
       } finally {
         setLoadingMessages(false);
       }
@@ -84,8 +118,12 @@ const QuickAiAssistant = () => {
     
     if (selectedConversationId) {
       fetchMessages();
+    } else {
+       // Clear messages and reset suggestions if no conversation is selected
+       setMessages([]);
+       setSuggestedMessages(defaultSuggestions);
     }
-  }, [selectedConversationId]);
+  }, [selectedConversationId]); // Rerun when selectedConversationId changes
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -107,9 +145,17 @@ const QuickAiAssistant = () => {
       });
       
       const newConversation = response.data;
-      setConversations([newConversation, ...conversations]);
-      setSelectedConversationId(newConversation.id);
-      setConversationTitle(newConversation.title);
+      // Ensure suggestions are parsed correctly for the new conversation
+      const formattedNewConv = {
+          ...newConversation,
+          lastSuggestedQuestions: Array.isArray(newConversation.lastSuggestedQuestions) ? newConversation.lastSuggestedQuestions : defaultSuggestions
+      };
+
+      setConversations([formattedNewConv, ...conversations]);
+      setSelectedConversationId(formattedNewConv.id);
+      setConversationTitle(formattedNewConv.title);
+      setMessages([]); // Clear messages for new conversation
+      setSuggestedMessages(formattedNewConv.lastSuggestedQuestions); // Set suggestions (likely default)
       setNewConversationTitle('');
       setIsCreatingConversation(false);
       setError(null);
@@ -123,6 +169,7 @@ const QuickAiAssistant = () => {
   const handleSelectConversation = (conversation) => {
     setSelectedConversationId(conversation.id);
     setConversationTitle(conversation.title);
+    // Suggestions will be updated by the useEffect hook listening to selectedConversationId
     setError(null);
   };
 
@@ -147,9 +194,21 @@ const QuickAiAssistant = () => {
     setError(null);
 
     try {
+      // Construct payload for /ai/ask endpoint
+      // It expects 'chatId', which corresponds to the ID in the 'Chats' table.
+      // We need to find the 'Chats' table ID associated with our 'Conversations' table ID.
+      // This requires either:
+      // A) Modifying the backend /ai/ask to accept conversationId directly OR
+      // B) Fetching the associated Chat ID on the frontend before sending.
+      // Option A is cleaner. Let's assume backend /ai/ask is modified or will be.
+      // For now, we'll send conversationId and hope the backend handles it.
+      // *** If errors occur here, the backend /ai/ask needs adjustment ***
       const payload = {
         question: userMessageContent,
-        conversationId: selectedConversationId,
+        // Send conversationId, assuming backend /ai/ask can handle it
+        // If not, this needs adjustment based on how Chats/Conversations are linked
+        chatId: selectedConversationId, // Sending conversation ID as chatId for now
+        // conversationId: selectedConversationId // Alternatively, send explicitly if backend is updated
       };
 
       const response = await axios.post('/ai/ask', payload);
@@ -167,6 +226,7 @@ const QuickAiAssistant = () => {
         return [...newMessages, userMessage, aiMessage];
       });
 
+      // Update suggestions based on AI response
       if (aiResponseData.suggestedQuestions && aiResponseData.suggestedQuestions.length > 0) {
         setSuggestedMessages(aiResponseData.suggestedQuestions);
       } else {
@@ -237,6 +297,7 @@ const QuickAiAssistant = () => {
     setError(null);
 
     try {
+      // Assuming the route is /conversations/:conversationId/messages/:messageId
       await axios.delete(`/conversations/${selectedConversationId}/messages/${messageId}`);
     } catch (err) {
       console.error('Error deleting message:', err);
@@ -273,6 +334,7 @@ const QuickAiAssistant = () => {
     setError(null);
 
     try {
+       // Assuming the route is /conversations/:conversationId/messages/:messageId
       await axios.put(`/conversations/${selectedConversationId}/messages/${editingMessageId}`, { content: newContent });
     } catch (err) {
       console.error('Error saving edited message:', err);
@@ -444,7 +506,8 @@ const QuickAiAssistant = () => {
                         </div>
                       ) : (
                         <>
-                          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                          {/* Use ReactMarkdown to render content */}
+                          <ReactMarkdown className="prose prose-sm max-w-none">{message.content}</ReactMarkdown>
                           <div className="text-xs opacity-70 mt-1 text-right">
                             {formatTime(message.updatedAt || message.timestamp)}
                             {message.updatedAt && message.updatedAt !== message.timestamp && 
@@ -498,44 +561,45 @@ const QuickAiAssistant = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input area */}
-          <div className="border-t border-gray-200 bg-white">
-            {selectedConversationId && !isTyping && suggestedMessages.length > 0 && (
-              <div className="p-3 flex flex-wrap gap-2 justify-center">
-                {suggestedMessages.map((message, index) => (
+          {/* Suggested Messages */}
+          {messages.length > 0 && !isTyping && suggestedMessages.length > 0 && (
+            <div className="flex-shrink-0 p-4 border-t">
+              <p className="text-sm font-medium text-gray-600 mb-2">Suggestions :</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedMessages.map((suggestion, index) => (
                   <button
                     key={index}
-                    onClick={() => handleSendMessage(null, message)}
-                    className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 py-1 px-3 rounded-full transition-colors"
+                    onClick={(e) => handleSendMessage(e, suggestion)}
+                    className="px-3 py-1.5 text-sm bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors"
                   >
-                    {message}
+                    {suggestion}
                   </button>
                 ))}
               </div>
-            )}
-            
-            <div className="p-4">
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={selectedConversationId ? "Posez votre question ici..." : "Sélectionnez une conversation..."}
-                  className="form-input flex-grow rounded-full px-4 py-2 border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-                  disabled={!selectedConversationId || isTyping || loadingMessages}
-                />
-                <button
-                  type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white rounded-full p-3 flex items-center justify-center"
-                  disabled={!input.trim() || isTyping || !selectedConversationId || loadingMessages}
-                  aria-label="Envoyer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                  </svg>
-                </button>
-              </form>
             </div>
+          )}
+
+          {/* Input Area */}
+          <div className="flex-shrink-0 border-t p-4 bg-white">
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Posez votre question juridique ici..."
+                className="flex-grow px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={isTyping || loadingConversations || loadingMessages || !selectedConversationId}
+              />
+              <button
+                type="submit"
+                className="bg-primary-600 text-white rounded-full p-2 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50"
+                disabled={!input.trim() || isTyping || loadingConversations || loadingMessages || !selectedConversationId}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </form>
           </div>
         </div>
       </div>
