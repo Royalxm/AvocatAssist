@@ -27,11 +27,33 @@ router.post(
       .isArray()
       .withMessage('Les IDs de documents doivent être un tableau'),
     
-    body('chatId') // Add validation for chatId
-      .notEmpty()
-      .withMessage('L\'ID du chat est requis')
+    // Make chatId optional, but validate if present
+    body('chatId')
+      .optional()
       .isInt()
-      .withMessage('L\'ID du chat doit être un nombre entier')
+      .withMessage('L\'ID du chat doit être un nombre entier'),
+
+    // Make conversationId optional, but validate if present
+    body('conversationId')
+      .optional()
+      .isInt()
+      .withMessage('L\'ID de la conversation doit être un nombre entier'),
+
+    // Custom validation to ensure exactly one ID is provided
+    body().custom((value, { req }) => {
+      const { chatId, conversationId } = req.body;
+      const chatIdPresent = chatId !== undefined && chatId !== null && chatId !== '';
+      const conversationIdPresent = conversationId !== undefined && conversationId !== null && conversationId !== '';
+
+      if (!chatIdPresent && !conversationIdPresent) {
+        throw new Error('L\'ID du chat ou de la conversation est requis.');
+      }
+      if (chatIdPresent && conversationIdPresent) {
+        throw new Error('Fournir soit l\'ID du chat, soit l\'ID de la conversation, mais pas les deux.');
+      }
+      // If exactly one is present, validation passes (type check is handled above)
+      return true;
+    })
   ],
   aiController.askQuestion
 );

@@ -162,11 +162,12 @@ const OpenRouterClient = {
   /**
    * Generate legal advice
    * @param {String} question - User question
-   * @param {Array} documents - Related documents
+   * @param {Array} documents - Related documents (optional)
+   * @param {Array} messageHistory - Previous messages in the conversation (optional)
    * @param {Object} options - Additional options
    * @returns {Promise<String>} - Generated advice
    */
-  generateLegalAdvice: async (question, documents = [], options = {}) => {
+  generateLegalAdvice: async (question, documents = [], messageHistory = [], options = {}) => {
     try {
       let context = '';
       
@@ -207,39 +208,63 @@ const OpenRouterClient = {
 
 Instructions :
 1.  **Analyser la question :** Décomposez la question de l'utilisateur pour bien comprendre ses besoins. Adaptez le niveau de réponse si l'utilisateur semble être débutant.
-2.  **Utiliser le contexte :** Si des documents sont fournis, analysez-les attentivement pour éclairer votre réponse.
+2.  **Utiliser le contexte :** Si des documents sont fournis, analysez-les attentivement pour éclairer votre réponse. **Utilisez également l'historique de la conversation pour rester dans le sujet.**
 3.  **Raisonnement étape par étape :** Expliquez votre raisonnement de manière logique et structurée, en guidant l'utilisateur.
-4.  **Clarifier au besoin :** Si la question est ambiguë ou incomplète, posez des questions ciblées pour mieux cerner la demande. N'hésitez pas à proposer votre aide si vous identifiez un besoin plus large derrière la question.
-5.  **Fournir des informations utiles :** Donnez des explications simples sur les concepts juridiques, citez les articles de loi pertinents si possible, et proposez des exemples concrets. 
-6.  **Être proactif :** Si cela peut aider, suggérez spontanément des démarches possibles, des alternatives ou des points de vigilance. Si la question semble liée à un projet (ex. création d'entreprise), proposez des étapes ou des outils utiles. Demandez à l'utilisateur s'il souhaite être accompagné ou recevoir plus d'informations.
-7.  **Proposer son aide de manière naturelle :** Par exemple, dites "Souhaitez-vous que je vous accompagne dans les démarches ?", ou "Voulez-vous que je vous aide à rédiger ce document ?"
-8.  **Préciser les limites :** Rappelez systématiquement que vos réponses constituent des informations juridiques générales et ne remplacent PAS un avis juridique personnalisé fourni par un avocat qualifié. Recommandez toujours de consulter un avocat pour des conseils adaptés à la situation spécifique de l'utilisateur.
-9.  **Formatage Markdown :** Veuillez formater votre réponse en utilisant Markdown (par exemple, **gras**, *italique*, listes à puces avec -, *, ou +). Utilisez des titres si pertinent (par exemple, ## Titre).
-10. **Proposer des questions de suivi :** À la fin de votre réponse, proposez 3 à 5 questions de suivi pertinentes que l'utilisateur pourrait poser pour approfondir le sujet, sous la forme :
-
-QUESTIONS_SUGGÉRÉES:
-1. [Question 1]
-2. [Question 2]
-3. [Question 3]
-4. [Question 4 - optionnelle]
-5. [Question 5 - optionnelle]
-
+4.  **Clarifier au besoin :** Si la question est ambiguë ou incomplète, posez des questions ciblées pour mieux cerner la demande.
+5.  **Fournir des informations utiles :** Donnez des explications simples sur les concepts juridiques, citez les articles de loi pertinents si possible, et proposez des exemples concrets.
+6.  **Pertinence des exemples :** Lorsque vous donnez des exemples, assurez-vous qu'ils sont **directement liés au sujet actuel de la conversation** tel qu'établi par l'historique des messages. Évitez les exemples génériques ou hors sujet.
+7.  **Être proactif :** Si cela peut aider, suggérez spontanément des démarches possibles, des alternatives ou des points de vigilance. Si la question semble liée à un projet (ex. création d'entreprise), proposez des étapes ou des outils utiles. Demandez à l'utilisateur s'il souhaite être accompagné ou recevoir plus d'informations.
+8.  **Proposer son aide de manière naturelle :** Par exemple, dites "Souhaitez-vous que je vous accompagne dans les démarches ?", ou "Voulez-vous que je vous aide à rédiger ce document ?"
+9.  **Préciser les limites :** Rappelez systématiquement que vos réponses constituent des informations juridiques générales et ne remplacent PAS un avis juridique personnalisé fourni par un avocat qualifié. Recommandez toujours de consulter un avocat pour des conseils adaptés à la situation spécifique de l'utilisateur.
+10. **Formatage Markdown Impératif :** **TOUTE votre réponse DOIT être formatée en utilisant Markdown.** Utilisez **gras** (\`**gras**\`), *italique* (\`*italique*\`), listes à puces (\`- \`, \`* \`, ou \`+ \`), listes numérotées (\`1. \`), et titres (\`## Titre\`, \`### Sous-titre\`) pour structurer clairement l'information. Les retours à la ligne et les paragraphes sont importants.
+11. **Section Questions Suggérées :** À la toute fin de votre réponse, **APRÈS** tout le contenu principal, ajoutez le marqueur spécial \`__SUGGESTED_QUESTIONS_MARKER__\` sur sa propre ligne. Immédiatement après ce marqueur, listez 3 à 5 questions pertinentes (une par ligne, commençant par exemple par \\\`- \\\` ou \\\`1. \\\`) que l'utilisateur pourrait poser ensuite pour approfondir le sujet. N'ajoutez rien après cette liste de questions.
 Contexte des documents fournis (le cas échéant) :
 ${context}
 
-Question de l'utilisateur : ${question}
+Historique de la conversation (le cas échéant) :
+${messageHistory.map(m => `${m.sender === 'user' ? 'Utilisateur' : 'Assistant'}: ${m.content}`).join('\n')}
 
-Réponse de l'assistant juridique (en suivant les instructions ci-dessus, en format Markdown, incluant les suggestions et les questions proposées à la fin) :`; // Added Markdown instruction
+Question actuelle de l'utilisateur : ${question}
 
+Réponse de l'assistant juridique (en suivant **TOUTES** les instructions ci-dessus, formatée en **Markdown**, et se terminant par le marqueur __SUGGESTED_QUESTIONS_MARKER__ suivi de la liste de questions suggérées) :`;
       
-      const messages = [{ role: 'system', content: prompt }]; // Changed role to system for better instruction following
+      // Format message history for the API
+      const formattedHistory = messageHistory.map(msg => ({
+        role: msg.sender === 'ai' ? 'assistant' : 'user', // Map 'ai' to 'assistant'
+        content: msg.content
+      }));
+
+      // Construct the full message list: system prompt + history + current question
+      const messages = [
+        { role: 'system', content: prompt },
+        ...formattedHistory,
+        { role: 'user', content: question } // Add the current user question last
+      ];
       const response = await OpenRouterClient.createChatCompletion(messages, {
         temperature: 0.4,
         max_tokens: 2000,
         ...options
       });
       
-      return response.choices[0].message.content;
+      const rawResponse = response.choices[0].message.content;
+      const suggestionMarker = '__SUGGESTED_QUESTIONS_MARKER__';
+      const markerIndex = rawResponse.indexOf(suggestionMarker);
+
+      let advice = rawResponse;
+      let suggestions = [];
+
+      if (markerIndex !== -1) {
+        advice = rawResponse.substring(0, markerIndex).trim();
+        const suggestionsText = rawResponse.substring(markerIndex + suggestionMarker.length).trim();
+        // Split suggestions by newline and filter out empty lines
+        suggestions = suggestionsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      } else {
+        // Fallback if marker is not found (though it should be based on the prompt)
+        console.warn("Suggestion marker '__SUGGESTED_QUESTIONS_MARKER__' not found in AI response.");
+      }
+
+      return { advice, suggestions };
+
     } catch (error) {
       console.error('Legal advice generation error:', error);
       throw error;

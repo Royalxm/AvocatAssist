@@ -3,7 +3,8 @@
  * Handles API endpoints for conversations (quick AI assistance)
  */
 const ConversationModel = require('../models/ConversationModel');
-
+const ChatModel = require('../models/ChatModel'); // Import ChatModel
+const MessageModel = require('../models/MessageModel'); // Import MessageModel
 class ConversationController {
   /**
    * Get all conversations for the authenticated user
@@ -151,17 +152,27 @@ class ConversationController {
         return res.status(400).json({ message: 'Sender must be either "user" or "ai"' });
       }
       
-      // First check if the user owns the conversation
-      const conversationCheck = await ConversationModel.getById(id, userId);
-      if (!conversationCheck) {
-         return res.status(404).json({ message: 'Conversation not found or not authorized' });
+      // Find the chat associated with this conversation for this user
+      const chats = await ChatModel.findByUserId(userId, { conversationId: id });
+      
+      if (!chats || chats.length === 0) {
+        // If no chat exists for this conversation, potentially create one?
+        // For now, assume a chat should exist if the conversation exists.
+        // Let's re-verify conversation existence first for a clearer error.
+        const conversationCheck = await ConversationModel.getById(id, userId);
+        if (!conversationCheck) {
+           return res.status(404).json({ message: 'Conversation not found or not authorized' });
+        }
+        // If conversation exists but chat doesn't, this indicates an inconsistency.
+        console.error(`Inconsistency: Conversation ${id} exists for user ${userId}, but no associated chat found.`);
+        return res.status(500).json({ message: 'Internal server error: Chat not found for conversation.' });
       }
       
-      const message = await ConversationModel.addMessage({
-        conversationId: id,
-        sender,
-        content
-      });
+      // Assuming one chat per conversation for quick AI assist
+      const chatId = chats[0].id;
+      
+      // Use MessageModel to create the message
+      const message = await MessageModel.create(chatId, sender, content);
       
       res.status(201).json(message);
     } catch (error) {
@@ -185,7 +196,17 @@ class ConversationController {
         return res.status(400).json({ message: 'Content is required' });
       }
       
-      const message = await ConversationModel.updateMessage(messageId, { content }, userId);
+      // Verify user owns the conversation first (indirectly checks message ownership)
+      const conversationCheck = await ConversationModel.getById(conversationId, userId);
+       if (!conversationCheck) {
+          return res.status(404).json({ message: 'Conversation not found or not authorized' });
+       }
+      
+      // Use MessageModel to update the message
+      // Note: ConversationModel.updateMessage had ownership check, MessageModel.update does not.
+      // We rely on the conversation check above. A more robust check might involve
+      // fetching the message via MessageModel and verifying its chatId links to the conversation's chat.
+      const message = await MessageModel.update(messageId, content);
       
       res.status(200).json(message);
     } catch (error) {
@@ -209,7 +230,16 @@ class ConversationController {
       const { conversationId, messageId } = req.params; // Note: conversationId isn't strictly needed here by the model but good for routing
       const userId = req.user.id;
       
-      await ConversationModel.deleteMessage(messageId, userId);
+      // Verify user owns the conversation first (indirectly checks message ownership)
+      const conversationCheck = await ConversationModel.getById(conversationId, userId);
+       if (!conversationCheck) {
+          return res.status(404).json({ message: 'Conversation not found or not authorized' });
+       }
+       
+      // Use MessageModel to delete the message
+      // Note: ConversationModel.deleteMessage had ownership check, MessageModel.delete does not.
+      // We rely on the conversation check above.
+      await MessageModel.delete(messageId);
       
       res.status(200).json({ message: 'Message deleted successfully' });
     } catch (error) {

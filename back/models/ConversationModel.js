@@ -21,7 +21,7 @@ class ConversationModel {
       }
       
       const query = `
-        INSERT INTO conversations (user_id, title, created_at, updated_at)
+        INSERT INTO conversations (userId, title, createdAt, updatedAt)
         VALUES (?, ?, datetime('now'), datetime('now'))
       `;
       
@@ -41,7 +41,7 @@ class ConversationModel {
               return reject(err);
             }
             
-            resolve(this.formatConversation(conversation));
+            resolve(ConversationModel.formatConversation(conversation));
           }
         );
       });
@@ -57,11 +57,11 @@ class ConversationModel {
     return new Promise((resolve, reject) => {
       const query = `
         SELECT c.*, 
-               (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count,
-               (SELECT MAX(created_at) FROM messages m WHERE m.conversation_id = c.id) as last_message_at
-        FROM conversations c
-        WHERE c.user_id = ?
-        ORDER BY c.updated_at DESC
+               (SELECT COUNT(*) FROM Messages m JOIN Chats ch ON m.chatId = ch.id WHERE ch.conversationId = c.id) as message_count,
+               (SELECT MAX(m.createdAt) FROM Messages m JOIN Chats ch ON m.chatId = ch.id WHERE ch.conversationId = c.id) as last_message_at
+        FROM Conversations c
+        WHERE c.userId = ?
+        ORDER BY c.updatedAt DESC
       `;
       
       db.all(query, [userId], (err, conversations) => {
@@ -85,8 +85,8 @@ class ConversationModel {
     return new Promise((resolve, reject) => {
       // First get the conversation
       const conversationQuery = `
-        SELECT * FROM conversations
-        WHERE id = ? AND user_id = ?
+        SELECT * FROM Conversations
+        WHERE id = ? AND userId = ?
       `;
       
       db.get(conversationQuery, [id, userId], (err, conversation) => {
@@ -101,10 +101,13 @@ class ConversationModel {
         }
         
         // Then get the messages for this conversation
+        // Fetch messages associated with the chat linked to this conversation
         const messagesQuery = `
-          SELECT * FROM messages
-          WHERE conversation_id = ?
-          ORDER BY created_at ASC
+          SELECT m.*
+          FROM Messages m
+          JOIN Chats c ON m.chatId = c.id
+          WHERE c.conversationId = ?
+          ORDER BY m.createdAt ASC
         `;
         
         db.all(messagesQuery, [id], (err, messages) => {
@@ -114,7 +117,7 @@ class ConversationModel {
           }
           
           const formattedConversation = this.formatConversation(conversation);
-          formattedConversation.messages = messages.map(this.formatMessage);
+          formattedConversation.messages = messages.map(ConversationModel.formatMessage); // Use static call
           
           resolve(formattedConversation);
         });
@@ -138,9 +141,9 @@ class ConversationModel {
       }
       
       const query = `
-        UPDATE conversations
-        SET title = ?, updated_at = datetime('now')
-        WHERE id = ? AND user_id = ?
+        UPDATE Conversations
+        SET title = ?, updatedAt = datetime('now')
+        WHERE id = ? AND userId = ?
       `;
       
       db.run(query, [title, id, userId], function(err) {
@@ -163,7 +166,7 @@ class ConversationModel {
               return reject(err);
             }
             
-            resolve(this.formatConversation(conversation));
+            resolve(ConversationModel.formatConversation(conversation));
           }
         );
       });
@@ -212,8 +215,8 @@ class ConversationModel {
         
         // Then delete the conversation
         const deleteConversationQuery = `
-          DELETE FROM conversations
-          WHERE id = ? AND user_id = ?
+          DELETE FROM Conversations
+          WHERE id = ? AND userId = ?
         `;
         
         db.run(deleteConversationQuery, [id, userId], function(err) {
@@ -232,64 +235,8 @@ class ConversationModel {
     });
   }
   
-  /**
-   * Add a message to a conversation
-   * @param {Object} data - Message data
-   * @param {string} data.conversationId - Conversation ID
-   * @param {string} data.sender - Message sender (user or ai)
-   * @param {string} data.content - Message content
-   * @returns {Promise<Object>} Created message
-   */
-  static addMessage(data) {
-    return new Promise((resolve, reject) => {
-      const { conversationId, sender, content } = data;
-      
-      if (!conversationId || !sender || !content) {
-        return reject(new Error('Conversation ID, sender, and content are required'));
-      }
-      
-      // First update the conversation's updated_at timestamp
-      const updateConversationQuery = `
-        UPDATE conversations
-        SET updated_at = datetime('now')
-        WHERE id = ?
-      `;
-      
-      db.run(updateConversationQuery, [conversationId], (err) => {
-        if (err) {
-          console.error('Error updating conversation timestamp:', err.message);
-          return reject(err);
-        }
-        
-        // Then insert the message
-        const insertMessageQuery = `
-          INSERT INTO messages (conversation_id, sender, content, created_at, updated_at)
-          VALUES (?, ?, ?, datetime('now'), datetime('now'))
-        `;
-        
-        db.run(insertMessageQuery, [conversationId, sender, content], function(err) {
-          if (err) {
-            console.error('Error adding message:', err.message);
-            return reject(err);
-          }
-          
-          // Get the created message
-          db.get(
-            'SELECT * FROM messages WHERE id = ?',
-            [this.lastID],
-            (err, message) => {
-              if (err) {
-                console.error('Error fetching created message:', err.message);
-                return reject(err);
-              }
-              
-              resolve(this.formatMessage(message));
-            }
-          );
-        });
-      });
-    });
-  }
+  // Note: addMessage functionality is handled by ChatModel.addMessage
+  // Messages are linked via chatId, not directly to conversationId.
   
   /**
    * Update a message
@@ -307,10 +254,11 @@ class ConversationModel {
       }
       
       // First check if the user owns the conversation containing this message
+      // Check ownership by joining Messages and Chats tables
       const checkOwnershipQuery = `
-        SELECT c.user_id
-        FROM messages m
-        JOIN conversations c ON m.conversation_id = c.id
+        SELECT ch.userId
+        FROM Messages m
+        JOIN Chats ch ON m.chatId = ch.id
         WHERE m.id = ?
       `;
       
@@ -320,7 +268,7 @@ class ConversationModel {
           return reject(err);
         }
         
-        if (!result || result.user_id !== userId) {
+        if (!result || result.userId !== userId) {
           return reject(new Error('Message not found or not authorized'));
         }
         
@@ -347,7 +295,7 @@ class ConversationModel {
                 return reject(err);
               }
               
-              resolve(this.formatMessage(message));
+              resolve(ConversationModel.formatMessage(message));
             }
           );
         });
@@ -364,10 +312,11 @@ class ConversationModel {
   static deleteMessage(id, userId) {
     return new Promise((resolve, reject) => {
       // First check if the user owns the conversation containing this message
+      // Check ownership by joining Messages and Chats tables
       const checkOwnershipQuery = `
-        SELECT c.user_id
-        FROM messages m
-        JOIN conversations c ON m.conversation_id = c.id
+        SELECT ch.userId
+        FROM Messages m
+        JOIN Chats ch ON m.chatId = ch.id
         WHERE m.id = ?
       `;
       
@@ -377,7 +326,7 @@ class ConversationModel {
           return reject(err);
         }
         
-        if (!result || result.user_id !== userId) {
+        if (!result || result.userId !== userId) {
           return reject(new Error('Message not found or not authorized'));
         }
         
@@ -423,7 +372,7 @@ class ConversationModel {
 
     return {
       id: conversation.id,
-      userId: conversation.user_id,
+      userId: conversation.userId,
       title: conversation.title,
       messageCount: conversation.message_count || 0,
       lastMessageAt: conversation.last_message_at || null,
@@ -443,7 +392,7 @@ class ConversationModel {
     
     return {
       id: message.id,
-      conversationId: message.conversation_id,
+      chatId: message.chatId, // Use chatId as per schema
       sender: message.sender,
       content: message.content,
       timestamp: message.created_at,

@@ -205,10 +205,8 @@ const QuickAiAssistant = () => {
       // *** If errors occur here, the backend /ai/ask needs adjustment ***
       const payload = {
         question: userMessageContent,
-        // Send conversationId, assuming backend /ai/ask can handle it
-        // If not, this needs adjustment based on how Chats/Conversations are linked
-        chatId: selectedConversationId, // Sending conversation ID as chatId for now
-        // conversationId: selectedConversationId // Alternatively, send explicitly if backend is updated
+        // Backend /ai/ask now accepts conversationId directly for Quick Assistant chats
+        conversationId: selectedConversationId
       };
 
       const response = await axios.post('/ai/ask', payload);

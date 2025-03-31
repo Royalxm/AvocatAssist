@@ -19,22 +19,45 @@ const askQuestion = asyncHandler(async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
   
-  // chatId is required from the request body, which refers to the ID in the Chats table
-  const { question, chatId: requestedChatId } = req.body; 
+  // Expect either chatId OR conversationId, but not both
+  const { question, chatId: requestedChatId, conversationId: requestedConversationId } = req.body;
   const userId = req.user.id;
-  
-  if (!requestedChatId) {
-    return res.status(400).json({ message: 'Chat ID is required.' });
+
+  let chat;
+  let actualChatId;
+
+  if (requestedChatId && requestedConversationId) {
+    return res.status(400).json({ message: 'Provide either chatId or conversationId, not both.' });
   }
-  const chatId = parseInt(requestedChatId, 10);
-  if (isNaN(chatId)) {
-     return res.status(400).json({ message: 'Invalid Chat ID format.' });
+
+  if (!requestedChatId && !requestedConversationId) {
+    return res.status(400).json({ message: 'Either chatId or conversationId is required.' });
   }
+
+  try {
+    if (requestedChatId) {
+      const parsedChatId = parseInt(requestedChatId, 10);
+      if (isNaN(parsedChatId)) {
+        throw new AppError('Invalid Chat ID format.', 400);
+      }
+      chat = await ChatModel.findById(parsedChatId, userId);
+      actualChatId = parsedChatId; // Keep the originally requested ID
+    } else { // conversationId must be present
+      const parsedConversationId = parseInt(requestedConversationId, 10);
+      if (isNaN(parsedConversationId)) {
+        throw new AppError('Invalid Conversation ID format.', 400);
+      }
+      // Fetch or create the chat associated with the conversation
+      // We might need the conversation title if creating a new chat
+      // For now, let's assume findOrCreateForConversation handles default title
+      chat = await ChatModel.findOrCreateForConversation(userId, parsedConversationId);
+      actualChatId = chat.id; // Use the ID from the found/created chat record
+    }
 
     // Check if user has enough tokens
     // For simplicity, we'll assume each question costs 10 tokens
     const tokenCost = 10;
-    
+
     // Get user
     const user = await new Promise((resolve, reject) => {
       UserModel.getUserById(userId, (err, user) => {
@@ -49,18 +72,19 @@ const askQuestion = asyncHandler(async (req, res) => {
     }
 
     // --- Chat Handling ---
-    // Fetch the chat record using the provided chatId
-    const chat = await ChatModel.findById(chatId, userId);
+    // The 'chat' variable is now populated from the logic above
     if (!chat) {
+      // This condition should ideally be caught by findById or findOrCreateForConversation
+      // But we keep it as a safeguard
       throw new AppError('Chat non trouvé ou accès refusé.', 404);
     }
 
     // --- Save User Message ---
-    await MessageModel.create(chatId, 'user', question);
-    
+    await MessageModel.create(actualChatId, 'user', question);
+
     // Initialize documents array
     let projectDocuments = [];
-    
+
     // If chat is associated with a project, get its documents
     if (chat.projectId) {
       projectDocuments = await new Promise((resolve, reject) => {
@@ -74,75 +98,67 @@ const askQuestion = asyncHandler(async (req, res) => {
         });
       });
     }
-    // For conversation-based chats (chat.conversationId), we don't need to fetch documents
-    
+    // For conversation-based chats (chat.conversationId is set), we don't fetch project documents
+
+    // --- Fetch Message History ---
+    const messageHistory = await MessageModel.findByChatId(actualChatId);
+
     // --- Generate AI Response ---
-    // Pass the fetched project documents to the AI client (empty array for conversation-based chats)
-    let aiResponseText = await OpenRouterClient.generateLegalAdvice(question, projectDocuments); // Changed to let
+    // Pass the fetched project documents and message history to the AI client
+    // Generate AI Response - now returns an object { advice, suggestions }
+    const { advice, suggestions: generatedSuggestions } = await OpenRouterClient.generateLegalAdvice(question, projectDocuments, messageHistory);
 
-      // --- Save AI Message ---
-      const aiMessage = await MessageModel.create(chatId, 'ai', aiResponseText, tokenCost);
+    // --- Save AI Message ---
+    // Save AI Message (only the main advice part)
+    const aiMessage = await MessageModel.create(actualChatId, 'ai', advice, tokenCost);
 
-      // --- Update User Token Balance ---
-      const updateResult = await new Promise((resolve, reject) => {
-        UserModel.updateCreditBalance(
-          userId,
-          tokenCost,
-          'debit',
-          `Utilisation IA (Chat ${chatId})`,
-          (err, result) => {
-            if (err) return reject(new AppError('Erreur lors de la mise à jour du solde de jetons', 500));
-            resolve(result);
-          }
-        );
-      });
-
-      // --- Extract and Save suggested questions if present ---
-      let suggestedQuestions = [];
-      const suggestedQuestionsMatch = aiResponseText.match(/QUESTIONS_SUGGÉRÉES:\s*\n((?:(?:\d+\.\s*.*?)(?:\n|$))+)/);
-      
-      if (suggestedQuestionsMatch && suggestedQuestionsMatch[1]) {
-        // Extract the questions from the matched text
-        const questionsText = suggestedQuestionsMatch[1];
-        const questionMatches = questionsText.match(/\d+\.\s*(.*?)(?:\n|$)/g);
-        
-        if (questionMatches) {
-          suggestedQuestions = questionMatches.map(q => {
-            // Remove the number and trim
-            return q.replace(/^\d+\.\s*/, '').trim();
-          }).filter(q => q); // Filter out empty strings
+    // --- Update User Token Balance ---
+    const updateResult = await new Promise((resolve, reject) => {
+      UserModel.updateCreditBalance(
+        userId,
+        tokenCost,
+        'debit',
+        `Utilisation IA (Chat ${actualChatId})`,
+        (err, result) => {
+          if (err) return reject(new AppError('Erreur lors de la mise à jour du solde de jetons', 500));
+          resolve(result);
         }
-        
-        // Remove the suggested questions section from the response text
-        // This keeps the UI cleaner by not showing the QUESTIONS_SUGGÉRÉES section
-        aiResponseText = aiResponseText.replace(/QUESTIONS_SUGGÉRÉES:[\s\S]*$/, '').trim();
-        
-        // Update the AI message in the database with the cleaned response
-        await MessageModel.update(aiMessage.id, aiResponseText);
+      );
+    });
 
-        // Save suggestions to the appropriate table (Chats or Conversations)
-        try {
-          if (chat.conversationId) {
-            // This chat is linked to a standalone conversation
-            await ConversationModel.updateLastSuggestedQuestions(chat.conversationId, suggestedQuestions);
-          } else if (chat.projectId) {
-             // This chat is linked to a project (handled via Chats table directly)
-             await ChatModel.updateLastSuggestedQuestions(chatId, suggestedQuestions);
-          }
-        } catch (suggestionSaveError) {
-            console.error("Error saving suggested questions:", suggestionSaveError);
-            // Decide if this error should be fatal or just logged
+    // --- Save generated suggestions if present ---
+    // Use the 'generatedSuggestions' array returned by generateLegalAdvice
+    if (generatedSuggestions && generatedSuggestions.length > 0) {
+
+      // Save suggestions to the appropriate table (Chats or Conversations)
+      try {
+        if (chat.conversationId) {
+          // This chat is linked to a standalone conversation
+          await ConversationModel.updateLastSuggestedQuestions(chat.conversationId, generatedSuggestions);
+        } else if (chat.projectId) {
+           // This chat is linked to a project (handled via Chats table directly)
+           await ChatModel.updateLastSuggestedQuestions(actualChatId, generatedSuggestions);
         }
+      } catch (suggestionSaveError) {
+          console.error("Error saving suggested questions:", suggestionSaveError);
+          // Decide if this error should be fatal or just logged
       }
-      
-      // --- Send Response ---
-      res.status(200).json({
-        chatId: chatId, // Return the chat ID (new or existing)
-        response: aiResponseText,
-        messageId: aiMessage.id, // Return the ID of the AI message
-        newBalance: updateResult.newBalance,
-        suggestedQuestions: suggestedQuestions // Include the extracted questions
-      });
+    }
+
+    // --- Send Response ---
+    res.status(200).json({
+      chatId: actualChatId, // Return the actual chat ID used
+      response: advice, // Return the main advice
+      messageId: aiMessage.id, // Return the ID of the AI message
+      newBalance: updateResult.newBalance,
+      suggestedQuestions: generatedSuggestions // Return the suggestions array
+    });
+
+  } catch (error) {
+    // Let the asyncHandler manage the error response
+    // If it's an AppError we created, it will use its status code. Otherwise, 500.
+    throw error;
+  }
 
     // Removed the redundant try...catch block.
     // asyncHandler will handle errors and pass them to the central error handler.

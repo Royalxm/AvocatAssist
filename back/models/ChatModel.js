@@ -69,6 +69,39 @@ class ChatModel {
       });
     });
   }
+  // Find or create a chat associated with a specific conversation
+  static findOrCreateForConversation(userId, conversationId, conversationTitle = 'Conversation Chat') {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, try to find an existing chat for this conversation and user
+        const findSql = 'SELECT * FROM Chats WHERE userId = ? AND conversationId = ?';
+        db.get(findSql, [userId, conversationId], async (err, existingChat) => {
+          if (err) {
+            console.error('Error finding chat by conversationId:', err.message);
+            return reject(new Error('Database error while searching for conversation chat.'));
+          }
+
+          if (existingChat) {
+            // Chat already exists, return it
+            resolve(existingChat);
+          } else {
+            // Chat doesn't exist, create it using the existing static create method
+            try {
+              const newChat = await ChatModel.create(userId, { conversationId: conversationId, title: conversationTitle });
+              resolve(newChat);
+            } catch (createErr) {
+              // Error during creation is already logged in ChatModel.create
+              reject(new Error('Failed to create chat for conversation.'));
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Unexpected error in findOrCreateForConversation:', error);
+        reject(error);
+      }
+    });
+  }
+
 
   // Update chat title
   static updateTitle(chatId, userId, newTitle) {
