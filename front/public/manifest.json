@@ -1,0 +1,42 @@
+{
+  "short_name": "AvocatAssist",
+  "name": "AvocatAssist - Assistance juridique automatisée",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff",
+  "description": "Plateforme SaaS juridique pour les particuliers et les professionnels du droit",
+  "lang": "fr",
+  "dir": "ltr",
+  "orientation": "portrait-primary",
+  "categories": ["legal", "productivity", "business"],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    },
+    {
+      "src": "screenshot2.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+Logo Design Instructions for AvocatAssist
+
+The logo should represent the legal assistance and AI aspects of the platform:
+
+1. Main Element: A scale of justice (balance) as the central element
+   - Scale base at the bottom
+   - Vertical stand in the middle
+   - Horizontal arm with two dishes hanging from it
+
+2. Additional Elements:
+   - A document icon on one side of the scale
+   - A brain or AI-related icon on the other side
+   - The letter "A" (for AvocatAssist) above the scale
+   - A small gavel icon to reinforce the legal theme
+
+3. Colors:
+   - Primary color: #0EA5E9 (sky blue from the Tailwind palette)
+   - Secondary elements in white or light gray
+
+4. Create two versions:
+   - logo.svg - Regular version with blue elements
+   - logo-white.svg - White version for dark backgrounds (used in the admin panel)
+
+5. Ensure the logo is:
+   - Simple and recognizable at small sizes
+   - Balanced in composition
+   - Modern and professional looking
+   - Works well in both color and monochrome
+
+The logo should convey trust, professionalism, and the blend of legal expertise with modern technology.
