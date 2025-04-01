@@ -13,7 +13,8 @@ import {
   ChevronDownIcon,
   BellIcon,
   CreditCardIcon,
-  SparklesIcon
+  SparklesIcon,
+  FolderIcon // Import FolderIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,13 +39,13 @@ const MainLayout = () => {
     if (isClient()) {
       return [
         { name: 'Tableau de bord', href: '/client/dashboard', icon: DocumentTextIcon },
-        { name: 'Documents', href: '/client/documents', icon: DocumentDuplicateIcon },
         { name: 'Demandes juridiques', href: '/client/legal-requests', icon: ChatBubbleLeftRightIcon },
         { name: 'Propositions', href: '/client/proposals', icon: DocumentTextIcon },
         { name: 'Transactions', href: '/client/transactions', icon: CurrencyEuroIcon },
         { name: 'Assistant IA', href: '/client/ai-assistant', icon: SparklesIcon },
         { name: 'Modèles de documents', href: '/client/templates', icon: DocumentDuplicateIcon },
-        { name: 'Abonnement', href: '/client/subscription', icon: CreditCardIcon }
+        { name: 'Abonnement', href: '/client/subscription', icon: CreditCardIcon },
+        { name: 'Mes Dossiers', href: '/client/projects', icon: FolderIcon } // Add Projects link
       ];
     }
     
@@ -361,7 +362,7 @@ const MainLayout = () => {
         )}
         
         {/* Main content */}
-        <main className="flex-grow"> {/* Removed py-10 */}
+        <main className="flex-grow p-8"> {/* Removed py-10 */}
           {/* Padding moved to individual page components if needed */}
           <div> {/* Removed padding classes */}
             <Outlet />

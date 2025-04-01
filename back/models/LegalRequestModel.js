@@ -6,12 +6,12 @@ const { db } = require('../config/database');
  * @param {Function} callback - Callback function
  */
 exports.createLegalRequest = (requestData, callback) => {
-  const { clientId, description, summaryAI } = requestData;
+  const { clientId, title, description, projectId, summaryAI } = requestData;
   
   // Insert legal request
   db.run(
-    'INSERT INTO LegalRequests (clientId, description, summaryAI, createdAt, status) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)',
-    [clientId, description, summaryAI || null, 'ouverte'],
+    'INSERT INTO LegalRequests (clientId, title, description, projectId, summaryAI, createdAt, status) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+    [clientId, title || null, description, projectId || null, summaryAI || null, 'ouverte'],
     function(err) {
       if (err) {
         return callback(err);
@@ -79,22 +79,37 @@ exports.countByClientId = (clientId, callback) => {
  * @param {Number} clientId - Client ID
  * @param {Number} page - Page number
  * @param {Number} limit - Number of requests per page
+ * @param {String} status - Filter by status (optional)
  * @param {Function} callback - Callback function
  */
-exports.getLegalRequestsByClientId = (clientId, page, limit, callback) => {
-  const query = 'SELECT * FROM LegalRequests WHERE clientId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?';
-  const countQuery = 'SELECT COUNT(*) as total FROM LegalRequests WHERE clientId = ?';
+exports.getLegalRequestsByClientId = (clientId, page, limit, status, callback) => {
+  let query = 'SELECT * FROM LegalRequests WHERE clientId = ?';
+  let countQuery = 'SELECT COUNT(*) as total FROM LegalRequests WHERE clientId = ?';
+  let params = [clientId];
+  
+  // Add status filter if provided
+  if (status) {
+    query += ' AND status = ?';
+    countQuery += ' AND status = ?';
+    params.push(status);
+  }
+  
+  // Add ordering and pagination
+  query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
   
   // Get total count
-  db.get(countQuery, [clientId], (err, result) => {
+  db.get(countQuery, params, (err, result) => {
     if (err) {
       return callback(err);
     }
     
     const total = result.total;
     
+    // Add pagination parameters to query params
+    const queryParams = [...params, limit, (page - 1) * limit];
+    
     // Get requests
-    db.all(query, [clientId, limit, (page - 1) * limit], (err, requests) => {
+    db.all(query, queryParams, (err, requests) => {
       if (err) {
         return callback(err);
       }

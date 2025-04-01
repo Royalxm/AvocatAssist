@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const legalRequestController = require('../controllers/legalRequestController');
+const proposalController = require('../controllers/proposalController');
+const legalRequestDocumentController = require('../controllers/legalRequestDocumentController');
 const { authenticate, authorize } = require('../middleware/auth');
 
 /**
@@ -51,6 +53,17 @@ router.put('/:id', authenticate, legalRequestController.updateLegalRequest);
  * @access  Private
  */
 router.delete('/:id', authenticate, legalRequestController.deleteLegalRequest);
+/**
+ * @route   GET /api/legal-requests/:id/proposals
+ * @desc    Get proposals for a legal request
+ * @access  Private
+ */
+router.get('/:requestId/proposals', authenticate, proposalController.getProposalsByRequestId);
 
-
+/**
+ * @route   GET /api/legal-requests/:id/documents
+ * @desc    Get documents for a legal request
+ * @access  Private
+ */
+router.get('/:legalRequestId/documents', authenticate, legalRequestDocumentController.getDocumentsByLegalRequestId);
 module.exports = router;

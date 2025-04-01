@@ -72,7 +72,7 @@ const upload = multer({
  * @param {Function} next - Express next function
  */
 const uploadSingleDocument = (req, res, next) => {
-  upload.single('document')(req, res, (err) => {
+  upload.single('file')(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {

@@ -137,6 +137,12 @@ const OpenRouterClient = {
    */
   generateDocumentSummary: async (documentText, options = {}) => {
     try {
+      // Check if document text is valid
+      if (!documentText || typeof documentText !== 'string') {
+        console.warn('Invalid document text provided for summary generation:', documentText);
+        return "Impossible de générer un résumé car le texte du document est invalide ou vide.";
+      }
+      
       // Truncate document text if too long
       const maxLength = 15000; // Adjust based on token limits
       const truncatedText = documentText.length > maxLength
@@ -155,7 +161,8 @@ const OpenRouterClient = {
       return response.choices[0].message.content;
     } catch (error) {
       console.error('Document summary generation error:', error);
-      throw error;
+      // Return a default message instead of throwing the error
+      return "Impossible de générer un résumé pour ce document. Le service d'IA est temporairement indisponible ou le document est dans un format non pris en charge.";
     }
   },
   

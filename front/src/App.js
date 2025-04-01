@@ -19,8 +19,10 @@ import NotFoundPage from './pages/public/NotFoundPage';
 // Client Pages
 const ClientDashboard = lazy(() => import('./pages/client/Dashboard'));
 const ClientProfile = lazy(() => import('./pages/client/Profile'));
-const ClientDocuments = lazy(() => import('./pages/client/Documents'));
 const ClientLegalRequests = lazy(() => import('./pages/client/LegalRequests'));
+const ClientLegalRequestDetail = lazy(() => import('./pages/client/LegalRequestDetail'));
+const ClientCreateLegalRequest = lazy(() => import('./pages/client/CreateLegalRequest'));
+const EditLegalRequest = lazy(() => import('./pages/client/EditLegalRequest'));
 const ClientProposals = lazy(() => import('./pages/client/Proposals'));
 const ClientTransactions = lazy(() => import('./pages/client/Transactions'));
 const ClientSubscription = lazy(() => import('./pages/client/Subscription'));
@@ -28,6 +30,8 @@ const ClientAiAssistant = lazy(() => import('./pages/client/AiAssistant'));
 const ClientTemplates = lazy(() => import('./pages/client/Templates'));
 const CreateProject = lazy(() => import('./pages/client/CreateProject')); // Import CreateProject
 const QuickAiAssistant = lazy(() => import('./pages/client/QuickAiAssistant')); // Import QuickAiAssistant
+const ProjectChat = lazy(() => import('./pages/client/ProjectChat')); // Import ProjectChat for dossier
+const ProjectsList = lazy(() => import('./pages/client/ProjectsList')); // Import ProjectsList
 
 // Lawyer Pages
 const LawyerDashboard = lazy(() => import('./pages/lawyer/Dashboard'));
@@ -132,8 +136,10 @@ function App() {
         }>
           <Route path="dashboard" element={<ClientDashboard />} />
           <Route path="profile" element={<ClientProfile />} />
-          <Route path="documents" element={<ClientDocuments />} />
           <Route path="legal-requests" element={<ClientLegalRequests />} />
+          <Route path="legal-requests/:id" element={<ClientLegalRequestDetail />} />
+          <Route path="legal-requests/create" element={<ClientCreateLegalRequest />} />
+          <Route path="legal-requests/:id/edit" element={<EditLegalRequest />} />
           <Route path="proposals" element={<ClientProposals />} />
           <Route path="transactions" element={<ClientTransactions />} />
           <Route path="subscription" element={<ClientSubscription />} />
@@ -155,7 +161,7 @@ function App() {
             <ChatLayout />
           </ProtectedRoute>
         }>
-          <Route path=":projectId" element={<ClientAiAssistant />} /> {/* Route for project-based chat */}
+          <Route path=":projectId" element={<ProjectChat />} /> {/* Route for project-based chat */}
         </Route>
         
         {/* Additional client routes */}
@@ -166,6 +172,7 @@ function App() {
         }>
           <Route path="templates" element={<ClientTemplates />} />
           <Route path="projects/new" element={<CreateProject />} /> {/* Add route for creating projects */}
+          <Route path="projects" element={<ProjectsList />} /> {/* Add route for listing projects */}
         </Route>
         
         {/* Lawyer routes */}

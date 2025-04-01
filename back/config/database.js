@@ -251,6 +251,37 @@ const initializeDatabase = () => {
         FOREIGN KEY(chatId) REFERENCES Chats(id) ON DELETE CASCADE
       )
     `);
+    
+    // Create LegalRequestDocuments table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS LegalRequestDocuments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        legalRequestId INTEGER NOT NULL,
+        filePath TEXT NOT NULL,
+        fileName TEXT NOT NULL,
+        fileType TEXT NOT NULL,
+        fileSize INTEGER NOT NULL,
+        extractedText TEXT,
+        summary TEXT,
+        uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES Users(id),
+        FOREIGN KEY (legalRequestId) REFERENCES LegalRequests(id) ON DELETE CASCADE
+      )
+    `);
+    
+    // Create LegalRequestComments table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS LegalRequestComments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        legalRequestId INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY (legalRequestId) REFERENCES LegalRequests(id) ON DELETE CASCADE
+      )
+    `);
 
     // Trigger to update Chats.updatedAt when a new message is inserted
     db.run(`
@@ -404,6 +435,62 @@ const initializeDatabase = () => {
         db.run(
           'INSERT INTO Users (name, email, password, role, creditBalance) VALUES (?, ?, ?, ?, ?)',
           ['Admin', 'client@avocatassist.com', hashedPassword, 'client', 9999],
+          function(err) {
+            if (err) {
+              console.error('Error inserting admin user:', err.message);
+            } else {
+              console.log('Admin user created');
+            }
+          }
+        );
+      }
+    });
+    
+    // Create admin user if it doesn't exist
+    db.get('SELECT COUNT(*) as count FROM Users WHERE role = ?', ['lawyer'], (err, result) => {
+      if (err) {
+        console.error('Error checking admin user:', err.message);
+        return;
+      }
+      
+      if (result.count === 0) {
+        // Hash password (in a real app, use bcrypt)
+        const bcrypt = require('bcryptjs');
+        const salt = bcrypt.genSaltSync(10);
+        const hashedPassword = bcrypt.hashSync('admin123', salt);
+        
+        // Insert admin user
+        db.run(
+          'INSERT INTO Users (name, email, password, role, creditBalance) VALUES (?, ?, ?, ?, ?)',
+          ['Admin', 'lawyer@avocatassist.com', hashedPassword, 'lawyer', 9999],
+          function(err) {
+            if (err) {
+              console.error('Error inserting admin user:', err.message);
+            } else {
+              console.log('Admin user created');
+            }
+          }
+        );
+      }
+    });
+
+     // Create admin user if it doesn't exist
+     db.get('SELECT COUNT(*) as count FROM Users WHERE role = ?', ['support'], (err, result) => {
+      if (err) {
+        console.error('Error checking admin user:', err.message);
+        return;
+      }
+      
+      if (result.count === 0) {
+        // Hash password (in a real app, use bcrypt)
+        const bcrypt = require('bcryptjs');
+        const salt = bcrypt.genSaltSync(10);
+        const hashedPassword = bcrypt.hashSync('admin123', salt);
+        
+        // Insert admin user
+        db.run(
+          'INSERT INTO Users (name, email, password, role, creditBalance) VALUES (?, ?, ?, ?, ?)',
+          ['Admin', 'support@avocatassist.com', hashedPassword, 'support', 9999],
           function(err) {
             if (err) {
               console.error('Error inserting admin user:', err.message);

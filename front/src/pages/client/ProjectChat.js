@@ -1,23 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
-import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
+import ReactMarkdown from 'react-markdown';
 
-const AiAssistant = () => {
-  const { projectId, chatId } = useParams();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const legalRequestId = queryParams.get('legalRequestId');
-  
-  const isProjectMode = !!projectId;
-  const isLegalRequestMode = !!legalRequestId;
-  const currentId = projectId || chatId || legalRequestId;
+const ProjectChat = () => {
+  const { projectId } = useParams();
   const { currentUser } = useAuth();
-  
-  // Legal request state
-  const [legalRequest, setLegalRequest] = useState(null);
-  const [loadingLegalRequest, setLoadingLegalRequest] = useState(false);
 
   // Document state
   const [documents, setDocuments] = useState([]);
@@ -53,87 +42,6 @@ const AiAssistant = () => {
 
   const messagesEndRef = useRef(null);
 
-  // Fetch legal request
-  useEffect(() => {
-    const fetchLegalRequest = async () => {
-      if (!legalRequestId) return;
-      
-      setLoadingLegalRequest(true);
-      setError(null);
-      
-      try {
-        const response = await axios.get(`/legal-requests/${legalRequestId}`);
-        setLegalRequest(response.data.request);
-        
-        // Also fetch documents related to this legal request
-        try {
-          const docsResponse = await axios.get(`/legal-requests/${legalRequestId}/documents`);
-          setDocuments(docsResponse.data.documents || []);
-        } catch (docErr) {
-          console.error('Error fetching legal request documents:', docErr);
-          // Don't set error here to avoid blocking the whole page
-        }
-        
-        // Create or fetch a chat for this legal request
-        await fetchOrCreateLegalRequestChat(legalRequestId, response.data.request);
-        
-      } catch (err) {
-        console.error('Error fetching legal request:', err);
-        setError(err.response?.data?.message || 'Impossible de charger la demande juridique.');
-      } finally {
-        setLoadingLegalRequest(false);
-      }
-    };
-    
-    if (isLegalRequestMode) {
-      fetchLegalRequest();
-    }
-  }, [legalRequestId, isLegalRequestMode]);
-  
-  // Fetch or create chat for legal request
-  const fetchOrCreateLegalRequestChat = async (requestId, requestData) => {
-    setIsLoadingProjectChat(true);
-    setChatError(null);
-    setMessages([]);
-    setProjectChatId(null);
-    
-    try {
-      const response = await axios.get(`/chats?legalRequestId=${requestId}`);
-      const existingChats = response.data;
-      
-      if (existingChats && existingChats.length > 0) {
-        setProjectChatId(existingChats[0].id);
-        setProjectTitle(existingChats[0].title || `Demande juridique #${requestId}`);
-        
-        // Set suggestions from the fetched chat data if available
-        if (existingChats[0].lastSuggestedQuestions && existingChats[0].lastSuggestedQuestions.length > 0) {
-          setSuggestedMessages(existingChats[0].lastSuggestedQuestions);
-        } else {
-          setSuggestedMessages(defaultSuggestions);
-        }
-      } else {
-        const createResponse = await axios.post('/chats', {
-          legalRequestId: requestId,
-          title: requestData?.title ? `Demande: ${requestData.title}` : `Demande juridique #${requestId}`
-        });
-        
-        const newChat = createResponse.data;
-        if (newChat && newChat.id) {
-          setProjectChatId(newChat.id);
-          setProjectTitle(newChat.title);
-          setSuggestedMessages(defaultSuggestions);
-        } else {
-          throw new Error('Failed to create chat for the legal request.');
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching or creating legal request chat:', err);
-      setChatError(err.response?.data?.message || 'Impossible de charger ou créer la conversation pour cette demande juridique.');
-    } finally {
-      setIsLoadingProjectChat(false);
-    }
-  };
-  
   // Fetch chat for project
   useEffect(() => {
     const fetchOrCreateProjectChat = async () => {
@@ -183,10 +91,8 @@ const AiAssistant = () => {
       }
     };
 
-    if (projectId && !isLegalRequestMode) {
-      fetchOrCreateProjectChat();
-    }
-  }, [projectId, isLegalRequestMode]);
+    fetchOrCreateProjectChat();
+  }, [projectId]);
 
   // Fetch messages and potentially update suggestions
   useEffect(() => {
@@ -247,10 +153,8 @@ const AiAssistant = () => {
       }
     };
 
-    if (isProjectMode) {
-      fetchProjectDocuments();
-    }
-  }, [projectId, isProjectMode]);
+    fetchProjectDocuments();
+  }, [projectId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -353,21 +257,14 @@ const AiAssistant = () => {
   const handleUploadDocument = async (e) => {
     e.preventDefault();
 
-    if (!selectedFile) return;
-    if (!projectId && !legalRequestId) return;
+    if (!selectedFile || !projectId) return;
 
     setIsUploading(true);
     setUploadProgress(0);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
-    
-    // Add the appropriate ID based on the mode
-    if (isProjectMode) {
-      formData.append('projectId', projectId);
-    } else if (isLegalRequestMode) {
-      formData.append('legalRequestId', legalRequestId);
-    }
+    formData.append('projectId', projectId);
 
     try {
       const uploadInterval = setInterval(() => {
@@ -495,37 +392,22 @@ const AiAssistant = () => {
         <div className="flex-shrink-0 border-b bg-gradient-to-r from-primary-600 to-primary-700 shadow-md z-10 p-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              {isProjectMode ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-                </svg>
-              ) : isLegalRequestMode ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-              )}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+              </svg>
               <h1 className="text-xl font-bold text-white">
-                {isLoadingProjectChat ? 'Chargement...' : 
-                 isLegalRequestMode ? (legalRequest ? 
-                   `${legalRequest.title || `Demande #${legalRequestId}`}` : 
-                   `Demande juridique #${legalRequestId}`) : 
-                 projectTitle || `Projet ${projectId}`}
+                {isLoadingProjectChat ? 'Chargement...' : projectTitle || `Projet ${projectId}`}
               </h1>
             </div>
-            {isLegalRequestMode && legalRequest && (
-              <span className={`px-3 py-1 text-sm font-medium rounded-full shadow-sm ${
-                legalRequest.status === 'ouverte' ? 'bg-blue-100 text-blue-800' :
-                legalRequest.status === 'en cours' ? 'bg-yellow-100 text-yellow-800' :
-                legalRequest.status === 'fermée' ? 'bg-green-100 text-green-800' :
-                'bg-white text-gray-800'
-              }`}>
-                {legalRequest.status || 'Non défini'}
-              </span>
-            )}
+            <button
+              onClick={() => window.location.href = `/client/legal-requests/create?projectId=${projectId}`}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-100 text-primary-700 rounded-lg text-sm transition-colors shadow-sm font-medium"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Créer une demande juridique
+            </button>
           </div>
           {error && !messages.find(m => m.isError) && (
             <div className="mt-2 text-sm bg-red-100 text-red-800 p-2 rounded-md">
@@ -664,9 +546,9 @@ const AiAssistant = () => {
 
         {/* Input Wrapper - Fixed at the bottom */}
         <div className="flex-shrink-0 border-t bg-white">
-          {/* Suggested Messages - Hidden */}
+          {/* Suggested Messages */}
           {messages.length > 0 && !isTyping && suggestedMessages.length > 0 && (
-            <div className="hidden flex-shrink-0 p-4 border-t"> {/* Added hidden class */}
+            <div className="flex-shrink-0 p-4 border-t">
               <p className="text-sm font-medium text-gray-600 mb-2">Suggestions :</p>
               <div className="flex flex-wrap gap-2">
                 {suggestedMessages.map((suggestion, index) => (
@@ -683,7 +565,7 @@ const AiAssistant = () => {
           )}
 
           {/* Input Form Area */}
-          <div className="p-4"> {/* Removed bg-white, border-t from here */}
+          <div className="p-4">
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
               <input
                 type="text"
@@ -708,171 +590,56 @@ const AiAssistant = () => {
 
       </div> {/* End Main Chat Area */}
 
-      {/* Right Sidebar - Project Documents */}
-      {isProjectMode && (
-        <div className="w-80 flex-shrink-0 border-l bg-gray-50 flex flex-col">
-          {/* Header */}
-          <div className="flex-shrink-0 p-4 border-b">
-            <h2 className="text-lg font-semibold">Documents du Projet</h2>
-          </div>
-
-          {/* Upload Form */}
-          <div className="flex-shrink-0 p-4 border-b">
-            <form onSubmit={handleUploadDocument}>
-              <input type="file" onChange={handleFileChange} className="mb-2 text-sm" />
-              {selectedFile && (
-                <div className="text-xs text-gray-500 mb-2">
-                  {selectedFile.name} ({formatFileSize(selectedFile.size)})
-                </div>
-              )}
-              {isUploading && (
-                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                  <div className="bg-primary-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
-                </div>
-              )}
-              <button type="submit" disabled={!selectedFile || isUploading} className="w-full text-sm bg-primary-600 text-white px-3 py-1.5 rounded hover:bg-primary-700 disabled:opacity-50">
-                {isUploading ? 'Chargement...' : 'Ajouter le document'}
-              </button>
-            </form>
-          </div>
-
-          {/* Document List */}
-          <div className="flex-grow overflow-y-auto p-4 space-y-3">
-            {loadingDocuments ? (
-              <p className="text-gray-500 text-sm">Chargement des documents...</p>
-            ) : documents.length === 0 ? (
-              <p className="text-gray-500 text-sm">Aucun document dans ce projet.</p>
-            ) : (
-              documents.map(doc => (
-                <div key={doc.id} className="bg-white p-3 rounded shadow-sm border flex items-start space-x-2">
-                  <span className="text-xl mt-0.5">{getFileIcon(doc.fileType)}</span>
-                  <div className="flex-grow">
-                    <p className="text-sm font-medium truncate">{doc.fileName}</p>
-                    <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
-                    <p className="text-xs text-gray-400">Ajouté le {new Date(doc.uploadedAt).toLocaleDateString('fr-FR')}</p>
-                  </div>
-                  {/* Add download/delete buttons here if needed */}
-                </div>
-              ))
-            )}
-          </div>
+      {/* Right Sidebar (Documents) */}
+      <div className="w-80 flex-shrink-0 border-l bg-gray-50 flex flex-col">
+        {/* Header */}
+        <div className="flex-shrink-0 p-4 border-b">
+          <h2 className="text-lg font-semibold">Documents du Projet</h2>
         </div>
-      )}
-      
-      {/* Right Sidebar - Legal Request Details */}
-      {isLegalRequestMode && (
-        <div className="w-80 flex-shrink-0 border-l bg-gray-50 flex flex-col">
-          {/* Header */}
-          <div className="flex-shrink-0 p-4 border-b">
-            <h2 className="text-lg font-semibold">Détails de la demande</h2>
-          </div>
-          
-          {loadingLegalRequest ? (
-            <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
-            </div>
-          ) : !legalRequest ? (
-            <div className="p-4 text-center text-gray-500">
-              Impossible de charger les détails de la demande juridique.
-            </div>
+
+        {/* Upload Form */}
+        <div className="flex-shrink-0 p-4 border-b">
+          <form onSubmit={handleUploadDocument}>
+            <input type="file" onChange={handleFileChange} className="mb-2 text-sm" />
+            {selectedFile && (
+              <div className="text-xs text-gray-500 mb-2">
+                {selectedFile.name} ({formatFileSize(selectedFile.size)})
+              </div>
+            )}
+            {isUploading && (
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div className="bg-primary-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+              </div>
+            )}
+            <button type="submit" disabled={!selectedFile || isUploading} className="w-full text-sm bg-primary-600 text-white px-3 py-1.5 rounded hover:bg-primary-700 disabled:opacity-50">
+              {isUploading ? 'Chargement...' : 'Ajouter le document'}
+            </button>
+          </form>
+        </div>
+
+        {/* Document List */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-3">
+          {loadingDocuments ? (
+            <p className="text-gray-500 text-sm">Chargement des documents...</p>
+          ) : documents.length === 0 ? (
+            <p className="text-gray-500 text-sm">Aucun document dans ce projet.</p>
           ) : (
-            <>
-              {/* Legal Request Info */}
-              <div className="p-4 border-b">
-                <h3 className="font-medium text-gray-900 mb-2">{legalRequest.title || `Demande #${legalRequest.id}`}</h3>
-                
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                    legalRequest.status === 'ouverte' ? 'bg-blue-100 text-blue-800' :
-                    legalRequest.status === 'en cours' ? 'bg-yellow-100 text-yellow-800' :
-                    legalRequest.status === 'fermée' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {legalRequest.status || 'Non défini'}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    Créée le {new Date(legalRequest.createdAt).toLocaleDateString('fr-FR')}
-                  </span>
+            documents.map(doc => (
+              <div key={doc.id} className="bg-white p-3 rounded shadow-sm border flex items-start space-x-2">
+                <span className="text-xl mt-0.5">{getFileIcon(doc.fileType)}</span>
+                <div className="flex-grow">
+                  <p className="text-sm font-medium truncate">{doc.fileName}</p>
+                  <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
+                  <p className="text-xs text-gray-400">Ajouté le {new Date(doc.uploadedAt).toLocaleDateString('fr-FR')}</p>
                 </div>
-                
-                <div className="text-sm text-gray-700 mb-3 line-clamp-3">
-                  {legalRequest.description}
-                </div>
-                
-                <Link
-                  to={`/client/legal-requests/${legalRequest.id}`}
-                  className="text-sm text-primary-600 hover:text-primary-800 font-medium"
-                >
-                  Voir tous les détails
-                </Link>
+                {/* Add download/delete buttons here if needed */}
               </div>
-              
-              {/* AI Summary */}
-              {legalRequest.summaryAI && (
-                <div className="p-4 border-b">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    <h3 className="text-sm font-medium text-gray-900">Résumé IA</h3>
-                  </div>
-                  <p className="text-sm text-gray-700">{legalRequest.summaryAI}</p>
-                </div>
-              )}
-              
-              {/* Upload Form */}
-              <div className="flex-shrink-0 p-4 border-b">
-                <form onSubmit={handleUploadDocument}>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Ajouter un document</h3>
-                  <input type="file" onChange={handleFileChange} className="mb-2 text-sm w-full" />
-                  {selectedFile && (
-                    <div className="text-xs text-gray-500 mb-2">
-                      {selectedFile.name} ({formatFileSize(selectedFile.size)})
-                    </div>
-                  )}
-                  {isUploading && (
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                      <div className="bg-primary-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
-                    </div>
-                  )}
-                  <button 
-                    type="submit" 
-                    disabled={!selectedFile || isUploading} 
-                    className="w-full text-sm bg-primary-600 text-white px-3 py-1.5 rounded hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    {isUploading ? 'Chargement...' : 'Ajouter le document'}
-                  </button>
-                </form>
-              </div>
-              
-              {/* Documents */}
-              <div className="flex-shrink-0 p-4 border-b">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Documents associés</h3>
-                
-                <div className="space-y-3">
-                  {loadingDocuments ? (
-                    <p className="text-gray-500 text-sm">Chargement des documents...</p>
-                  ) : documents.length === 0 ? (
-                    <p className="text-gray-500 text-sm">Aucun document associé à cette demande.</p>
-                  ) : (
-                    documents.map(doc => (
-                      <div key={doc.id} className="bg-white p-2 rounded shadow-sm border flex items-start space-x-2">
-                        <span className="text-lg">{getFileIcon(doc.fileType)}</span>
-                        <div className="flex-grow min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.fileName}</p>
-                          <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
+            ))
           )}
         </div>
-      )}
+      </div> {/* End Right Sidebar */}
     </div> // End Top Level Flex Container
   );
 };
 
-export default AiAssistant;
+export default ProjectChat;

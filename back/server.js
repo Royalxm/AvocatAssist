@@ -42,6 +42,8 @@ app.use('/api/templates', require('./routes/templates'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/conversations', require('./routes/conversations')); // Add conversation routes
+app.use('/api/legal-request-documents', require('./routes/legalRequestDocuments')); // Add legal request documents routes
+app.use('/api/legal-requests', require('./routes/legalRequestComments')); // Add legal request comments routes
 // API health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

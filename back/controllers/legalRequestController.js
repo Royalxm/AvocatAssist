@@ -7,7 +7,7 @@ const { generateDocumentSummary } = require('../utils/openRouter');
  * @param {Object} res - Express response object
  */
 exports.createLegalRequest = async (req, res) => {
-  const { description, documentText } = req.body;
+  const { description, documentText, title, projectId, summaryAI } = req.body;
   const clientId = req.user.id;
   
   // Validate input
@@ -19,25 +19,15 @@ exports.createLegalRequest = async (req, res) => {
   }
   
   try {
-    let summaryAI = null;
-    
-    // Generate summary if document text is provided
-    if (documentText) {
-      try {
-        const summary = await generateDocumentSummary(documentText);
-        summaryAI = summary.text;
-      } catch (err) {
-        console.error('Erreur lors de la génération du résumé:', err.message);
-        // Continue without summary
-      }
-    }
     
     // Create legal request
     LegalRequestModel.createLegalRequest(
       {
         clientId,
+        title,
         description,
-        summaryAI
+        projectId,
+        summaryAI: summaryAI || null
       },
       (err, result) => {
         if (err) {
@@ -119,8 +109,9 @@ exports.getClientLegalRequests = (req, res) => {
   const clientId = req.user.id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
+  const status = req.query.status;
   
-  LegalRequestModel.getLegalRequestsByClientId(clientId, page, limit, (err, result) => {
+  LegalRequestModel.getLegalRequestsByClientId(clientId, page, limit, status, (err, result) => {
     if (err) {
       console.error('Erreur lors de la récupération des demandes juridiques:', err.message);
       return res.status(500).json({
