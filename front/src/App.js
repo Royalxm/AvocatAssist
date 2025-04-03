@@ -10,14 +10,25 @@ import AdminLayout from './layouts/AdminLayout';
 import ChatLayout from './layouts/ChatLayout'; // Keep for now, might remove if ClientLayout handles all
 import LawyerLayout from './layouts/LawyerLayout';
 import ClientLayout from './layouts/ClientLayout'; // Import the new ClientLayout
+import Loading from './components/common/Loading'; // Import the common Loading component
+ 
+// Project Detail Sub-Components (Import directly for now for nested routes)
+import ProjectTasks from './components/lawyer/project/ProjectTasks';
+import ProjectHistory from './components/lawyer/project/ProjectHistory';
+import ProjectDocuments from './components/lawyer/project/ProjectDocuments';
+import ProjectNotes from './components/lawyer/project/ProjectNotes';
+import ProjectAiAssistant from './components/lawyer/project/ProjectAiAssistant';
+import ProjectFinance from './components/lawyer/project/ProjectFinance';
+import ProjectAgenda from './components/lawyer/project/ProjectAgenda';
+const ProjectSummaryDashboard = lazy(() => import('./pages/lawyer/ProjectSummaryDashboard')); // Lazy load the new summary dashboard
 
-// Public Pages
-import LandingPage from './pages/public/LandingPage';
-import LoginPage from './pages/public/LoginPage';
-import RegisterPage from './pages/public/RegisterPage';
-import NotFoundPage from './pages/public/NotFoundPage';
-
-// Lazy-loaded pages for better performance
+ // Public Pages
+ import LandingPage from './pages/public/LandingPage';
+ import LoginPage from './pages/public/LoginPage';
+ import RegisterPage from './pages/public/RegisterPage';
+ import NotFoundPage from './pages/public/NotFoundPage';
+ 
+ // Lazy-loaded pages for better performance
 // Client Pages
 const ClientDashboard = lazy(() => import('./pages/client/Dashboard'));
 const ClientProfile = lazy(() => import('./pages/client/Profile'));
@@ -46,7 +57,7 @@ const LawyerSubscription = lazy(() => import('./pages/lawyer/Subscription'));
 const LawyerQuickAiAssistant = lazy(() => import('./pages/lawyer/QuickAiAssistant')); // Add new general chat
 const LawyerProjectChat = lazy(() => import('./pages/lawyer/ProjectChat')); // Add new project chat
 const LawyerProjectsList = lazy(() => import('./pages/lawyer/ProjectsList')); // Add project list
-const LawyerCreateProject = lazy(() => import('./pages/lawyer/CreateProject')); // Add create project form
+// const LawyerCreateProject = lazy(() => import('./pages/lawyer/CreateProject')); // No longer needed as a separate page
 const LawyerLegalRequestDetail = lazy(() => import('./pages/lawyer/LawyerLegalRequestDetail')); // Add detail view
 const ForumPage = lazy(() => import('./pages/lawyer/ForumPage')); // Add Forum list page
 const ForumTopicPage = lazy(() => import('./pages/lawyer/ForumTopicPage')); // Add Forum topic page
@@ -55,8 +66,9 @@ const CalendarPage = lazy(() => import('./pages/lawyer/CalendarPage')); // Add C
 const ContactsPage = lazy(() => import('./pages/lawyer/ContactsPage')); // Add Contacts page
 const LegalNewsPage = lazy(() => import('./pages/lawyer/LegalNewsPage')); // Add Legal News page
 const LawyerTemplatesPage = lazy(() => import('./pages/lawyer/TemplatesPage')); // Add Lawyer Templates page
-
-// Admin Pages
+const LawyerProjectDetail = lazy(() => import('./pages/lawyer/ProjectDetailPage')); // Add Project Detail page
+ 
+  // Admin Pages
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/Users'));
 const AdminLegalRequests = lazy(() => import('./pages/admin/LegalRequests'));
@@ -66,13 +78,8 @@ const AdminSubscriptions = lazy(() => import('./pages/admin/Subscriptions'));
 const AdminApiSettings = lazy(() => import('./pages/admin/ApiSettings'));
 const AdminTemplates = lazy(() => import('./pages/admin/Templates'));
 
-// Loading component for suspense fallback
-const Loading = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-  </div>
-);
-
+// Loading component is now imported from './components/common/Loading'
+ 
 // Protected route component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, currentUser, loading } = useAuth();
@@ -219,7 +226,23 @@ function App() {
           <Route path="transactions" element={<LawyerTransactions />} />
           <Route path="subscription" element={<LawyerSubscription />} />
           <Route path="projects" element={<LawyerProjectsList />} /> {/* Add route for listing projects */}
-          <Route path="projects/new" element={<LawyerCreateProject />} /> {/* Add route for creating projects */}
+          {/* <Route path="projects/new" element={<LawyerCreateProject />} /> */} {/* Removed route, using modal now */}
+          {/* Project Detail Route with Nested Routes */}
+          {/* Project Detail Route with Nested Routes for Summary Tabs */}
+          <Route path="projects/:projectId/*" element={<LawyerProjectDetail />}>
+            {/* Index route renders the Summary Dashboard */}
+            <Route index element={<ProjectSummaryDashboard />} />
+            {/* Other routes render the FULL component view */}
+            <Route path="tasks" element={<ProjectTasks />} />
+            <Route path="history" element={<ProjectHistory />} />
+            <Route path="documents" element={<ProjectDocuments />} />
+            <Route path="notes" element={<ProjectNotes />} />
+            <Route path="ai" element={<ProjectAiAssistant />} />
+            <Route path="finance" element={<ProjectFinance />} />
+            <Route path="agenda" element={<ProjectAgenda />} />
+            {/* Fallback for unknown sub-paths could redirect to index */}
+            <Route path="*" element={<Navigate to="" replace />} />
+          </Route>
           <Route path="forum" element={<ForumPage />} /> {/* Add route for forum list */}
           <Route path="forum/topics/:topicId" element={<ForumTopicPage />} /> {/* Add route for forum topic */}
           <Route path="calendar" element={<CalendarPage />} /> {/* Add route for calendar */}

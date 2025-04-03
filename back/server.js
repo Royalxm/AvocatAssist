@@ -50,6 +50,8 @@ app.use('/api/calendar', require('./routes/calendar')); // Add calendar routes
 app.use('/api/contacts', require('./routes/contacts')); // Add contact book routes
 app.use('/api/legal-news', require('./routes/legalNews')); // Add legal news routes
 app.use('/api/lawyer-templates', require('./routes/lawyerTemplates')); // Add lawyer template routes
+app.use('/api/lawyer-projects', require('./routes/lawyerProjects')); // Add lawyer-specific project routes
+app.use('/api/project-clients', require('./routes/projectClients')); // Add project client routes
 // API health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

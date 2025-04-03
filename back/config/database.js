@@ -476,6 +476,87 @@ db.run(`
       END;
     `);
 
+    // Create projects_lawyer table for lawyer-specific personal projects/dossiers
+    db.run(`
+      CREATE TABLE IF NOT EXISTS projects_lawyer (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lawyerId INTEGER NOT NULL, -- Link to the lawyer user
+        title TEXT NOT NULL,
+        description TEXT,
+        type TEXT, -- Domain type (e.g., 'Droit de la famille', 'Recherche')
+        status TEXT DEFAULT 'Ouvert', -- e.g., 'Ouvert', 'En cours', 'Fermé', 'Urgent'
+        projectClientId INTEGER NULL, -- Link to the client associated with this project (if any)
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(projectClientId) REFERENCES project_clients(id) ON DELETE SET NULL -- Allow project to exist without client, or client deletion
+      )
+    `);
+
+    // Trigger to update projects_lawyer.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_projects_lawyer_timestamp
+      AFTER UPDATE ON projects_lawyer
+      FOR EACH ROW
+      BEGIN
+        UPDATE projects_lawyer SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
+    // Create project_clients table to store client info linked to lawyer projects
+    db.run(`
+      CREATE TABLE IF NOT EXISTS project_clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lawyerId INTEGER NOT NULL, -- Lawyer who added this client info
+        firstName TEXT,
+        lastName TEXT,
+        email TEXT,
+        phone TEXT,
+        address TEXT,
+        companyName TEXT, -- Optional company name
+        notes TEXT,       -- General notes about the client
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE -- Link client record to the lawyer
+      )
+    `);
+
+    // Trigger to update project_clients.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_project_clients_timestamp
+      AFTER UPDATE ON project_clients
+      FOR EACH ROW
+      BEGIN
+        UPDATE project_clients SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
+    // Create lawyer_tasks table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS lawyer_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        projectId INTEGER NOT NULL, -- Link to the lawyer project
+        lawyerId INTEGER NOT NULL, -- Link to the lawyer (for authorization)
+        text TEXT NOT NULL,
+        completed BOOLEAN DEFAULT 0,
+        dueDate DATETIME NULL, -- Optional due date
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(projectId) REFERENCES projects_lawyer(id) ON DELETE CASCADE, -- Delete tasks if project is deleted
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Trigger to update lawyer_tasks.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_lawyer_tasks_timestamp
+      AFTER UPDATE ON lawyer_tasks
+      FOR EACH ROW
+      BEGIN
+        UPDATE lawyer_tasks SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
 // Insert default subscription plans if they don't exist
 
 // Insert default subscription plans if they don't exist
