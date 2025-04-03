@@ -44,6 +44,12 @@ app.use('/api/chats', require('./routes/chats'));
 app.use('/api/conversations', require('./routes/conversations')); // Add conversation routes
 app.use('/api/legal-request-documents', require('./routes/legalRequestDocuments')); // Add legal request documents routes
 app.use('/api/legal-requests', require('./routes/legalRequestComments')); // Add legal request comments routes
+app.use('/api/forum', require('./routes/forum')); // Add forum routes
+app.use('/api/direct-messages', require('./routes/directMessages')); // Add direct message routes
+app.use('/api/calendar', require('./routes/calendar')); // Add calendar routes
+app.use('/api/contacts', require('./routes/contacts')); // Add contact book routes
+app.use('/api/legal-news', require('./routes/legalNews')); // Add legal news routes
+app.use('/api/lawyer-templates', require('./routes/lawyerTemplates')); // Add lawyer template routes
 // API health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

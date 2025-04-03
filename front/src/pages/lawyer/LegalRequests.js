@@ -1,140 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../../utils/api'; // Corrected import
 
-const LegalRequests = () => {
+// Renamed component
+const LawyerLegalRequests = () => {
+  const navigate = useNavigate();
   const [legalRequests, setLegalRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [showProposalForm, setShowProposalForm] = useState(false);
-  const [proposalData, setProposalData] = useState({
-    proposalText: '',
-    price: '',
-    estimatedDuration: ''
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0
   });
-  
+  const [error, setError] = useState(null);
+
   useEffect(() => {
-    // In a real app, this would fetch data from the API
-    // For now, we'll just simulate loading
-    const fetchLegalRequests = async () => {
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Mock data
-        const mockLegalRequests = [
-          {
-            id: 1,
-            clientId: 101,
-            clientName: 'Jean Dupont',
-            title: 'Litige avec mon propriétaire',
-            description: 'Mon propriétaire refuse de faire des réparations nécessaires dans mon appartement malgré plusieurs demandes écrites.',
-            summaryAI: 'Litige locatif concernant des réparations non effectuées par le propriétaire malgré des demandes formelles du locataire. Situation pouvant relever de l\'article 6 de la loi du 6 juillet 1989.',
-            status: 'ouverte',
-            createdAt: '2025-03-20T14:30:00Z',
-            proposals: 2,
-            hasProposed: false
-          },
-          {
-            id: 2,
-            clientId: 102,
-            clientName: 'Marie Martin',
-            title: 'Contestation de licenciement',
-            description: 'J\'ai été licencié pour faute grave mais je conteste les motifs invoqués par mon employeur.',
-            summaryAI: 'Contestation d\'un licenciement pour faute grave. Le salarié conteste la qualification des faits et la procédure pourrait relever du droit du travail, notamment des articles L1232-1 et suivants du Code du travail.',
-            status: 'en cours',
-            createdAt: '2025-03-15T10:15:00Z',
-            proposals: 3,
-            hasProposed: true
-          },
-          {
-            id: 3,
-            clientId: 103,
-            clientName: 'Sophie Lefebvre',
-            title: 'Problème de voisinage',
-            description: 'Mon voisin fait régulièrement du bruit tard le soir et refuse de dialoguer.',
-            summaryAI: 'Trouble anormal de voisinage lié à des nuisances sonores récurrentes. Situation relevant potentiellement de l\'article R. 1336-5 du Code de la santé publique et de la jurisprudence sur les troubles anormaux de voisinage.',
-            status: 'ouverte',
-            createdAt: '2025-03-05T09:45:00Z',
-            proposals: 1,
-            hasProposed: false
-          },
-          {
-            id: 4,
-            clientId: 104,
-            clientName: 'Pierre Dubois',
-            title: 'Litige avec un e-commerce',
-            description: 'J\'ai commandé un produit qui n\'a jamais été livré. Le service client ne répond pas à mes demandes de remboursement.',
-            summaryAI: 'Litige de consommation concernant une non-livraison de produit commandé en ligne. Situation relevant du droit de la consommation, notamment des articles L216-1 et suivants du Code de la consommation.',
-            status: 'ouverte',
-            createdAt: '2025-03-01T16:20:00Z',
-            proposals: 0,
-            hasProposed: false
-          }
-        ];
-        
-        setLegalRequests(mockLegalRequests);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching legal requests:', error);
-        setLoading(false);
-      }
-    };
-    
-    fetchLegalRequests();
-  }, []);
-  
-  const handleRequestSelect = (request) => {
-    setSelectedRequest(request);
-    setShowProposalForm(false);
-    setProposalData({
-      proposalText: '',
-      price: '',
-      estimatedDuration: ''
-    });
-  };
-  
-  const handleShowProposalForm = () => {
-    setShowProposalForm(true);
-  };
-  
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setProposalData(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleSubmitProposal = async (e) => {
-    e.preventDefault();
-    
-    if (!proposalData.proposalText || !proposalData.price || !proposalData.estimatedDuration) {
-      return;
+    fetchOpenLegalRequests();
+  }, [pagination.page]); // Refetch when page changes
+
+  const fetchOpenLegalRequests = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch open requests - Assuming an endpoint like /legal-requests/open exists or will be created
+      // This endpoint should ideally use LegalRequestModel.getOpenLegalRequests
+      const response = await api.get('/legal-requests/open', { // Use 'api'
+        params: {
+          page: pagination.page,
+          limit: pagination.limit,
+        }
+      });
+
+      setLegalRequests(response.data.requests || []);
+      setPagination(response.data.pagination || {
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0
+      });
+    } catch (err) {
+      console.error('Error fetching open legal requests:', err);
+      setError(err.response?.data?.message || 'Impossible de charger les demandes juridiques ouvertes.');
+    } finally {
+      setLoading(false);
     }
-    
-    // In a real app, this would call the API to submit the proposal
-    // For now, we'll just simulate success
-    
-    // Update the request to show that the lawyer has proposed
-    setLegalRequests(legalRequests.map(request => 
-      request.id === selectedRequest.id 
-        ? { 
-            ...request, 
-            hasProposed: true,
-            proposals: request.proposals + 1
-          } 
-        : request
-    ));
-    
-    // Reset form and close modal
-    setProposalData({
-      proposalText: '',
-      price: '',
-      estimatedDuration: ''
-    });
-    setShowProposalForm(false);
-    setSelectedRequest(null);
   };
-  
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
@@ -143,40 +56,19 @@ const LegalRequests = () => {
       year: 'numeric'
     });
   };
-  
+
+  // Simplified status badge for lawyers (likely always 'ouverte' here)
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'ouverte':
-        return <span className="badge badge-primary">Ouverte</span>;
-      case 'en cours':
-        return <span className="badge badge-warning">En cours</span>;
-      case 'fermée':
-        return <span className="badge badge-success">Fermée</span>;
-      default:
-        return <span className="badge">{status}</span>;
+    return <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Ouverte</span>;
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, page: newPage }));
     }
   };
-  
-  const filteredRequests = legalRequests.filter(request => {
-    // Filter by status
-    if (filter !== 'all' && request.status !== filter) {
-      return false;
-    }
-    
-    // Filter by search term
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        request.title.toLowerCase().includes(searchLower) ||
-        request.description.toLowerCase().includes(searchLower) ||
-        request.clientName.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    return true;
-  });
 
-  if (loading) {
+  if (loading && legalRequests.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
@@ -185,247 +77,160 @@ const LegalRequests = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Demandes juridiques</h1>
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            placeholder="Rechercher..."
-            className="form-input"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+    <div className="space-y-6 container mx-auto p-4 md:p-6">
+      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-lg p-6 mb-8">
+        <div className="flex items-center justify-between">
+          <div className="text-white">
+            <h1 className="text-3xl font-bold">Demandes Juridiques Ouvertes</h1>
+            <p className="mt-2 opacity-90">Consultez les demandes des clients et proposez vos services.</p>
+          </div>
+          {/* Removed "New Request" button for lawyers */}
         </div>
       </div>
-      
-      {/* Filters */}
-      <div className="flex space-x-2">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-3 py-1 rounded-md text-sm font-medium ${
-            filter === 'all'
-              ? 'bg-primary-100 text-primary-800'
-              : 'bg-white text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Toutes
-        </button>
-        <button
-          onClick={() => setFilter('ouverte')}
-          className={`px-3 py-1 rounded-md text-sm font-medium ${
-            filter === 'ouverte'
-              ? 'bg-primary-100 text-primary-800'
-              : 'bg-white text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Ouvertes
-        </button>
-        <button
-          onClick={() => setFilter('en cours')}
-          className={`px-3 py-1 rounded-md text-sm font-medium ${
-            filter === 'en cours'
-              ? 'bg-primary-100 text-primary-800'
-              : 'bg-white text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          En cours
-        </button>
-      </div>
-      
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-sm">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Erreur:</span>
+            <span className="ml-2">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Removed Filter section for lawyers viewing open requests */}
+
       {/* Legal requests list */}
       <div className="space-y-4">
-        {filteredRequests.length > 0 ? (
-          filteredRequests.map(request => (
-            <div
-              key={request.id}
-              className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200 cursor-pointer"
-              onClick={() => handleRequestSelect(request)}
-            >
+        {loading && legalRequests.length > 0 && (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+          </div>
+        )}
+
+        {!loading && legalRequests.length > 0 ? (
+          legalRequests.map(request => (
+            <div key={request.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-all transform hover:-translate-y-1">
               <div className="p-6">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start flex-wrap gap-4">
                   <div>
-                    <h2 className="text-xl font-semibold mb-2">{request.title}</h2>
-                    <div className="flex items-center space-x-3 text-sm text-gray-500 mb-4">
-                      <span>Client: {request.clientName}</span>
-                      <span>•</span>
-                      <span>Créée le {formatDate(request.createdAt)}</span>
-                      <span>•</span>
+                    <h2 className="text-xl font-semibold mb-2 text-gray-900 hover:text-primary-600 transition-colors">
+                      {/* Link to lawyer-specific detail view */}
+                      <Link to={`/lawyer/legal-requests/${request.id}`}>
+                        {request.title || `Demande #${request.id}`}
+                      </Link>
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 mb-4">
+                      <span className="flex items-center gap-1" title={`Client: ${request.clientName} (${request.clientEmail})`}>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                         {request.clientName || 'Client inconnu'}
+                      </span>
+                       <span className="text-gray-300">•</span>
+                      <span className="flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {formatDate(request.createdAt)}
+                      </span>
+                      <span className="text-gray-300">•</span>
                       {getStatusBadge(request.status)}
-                      <span>•</span>
-                      <span>{request.proposals} proposition(s)</span>
+                       <span className="text-gray-300">•</span>
+                       <span className="flex items-center gap-1">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                         </svg>
+                         {request.proposalsCount || 0} proposition{(request.proposalsCount !== 1) ? 's' : ''} déjà faite(s)
+                       </span>
                     </div>
                   </div>
-                  
-                  {!request.hasProposed && request.status === 'ouverte' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRequestSelect(request);
-                        handleShowProposalForm();
-                      }}
-                      className="btn-primary btn-sm"
-                    >
-                      Proposer
-                    </button>
-                  )}
-                  
-                  {request.hasProposed && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
-                      Proposition soumise
-                    </span>
-                  )}
+                  <Link
+                    to={`/lawyer/legal-requests/${request.id}`} // Link to lawyer detail view
+                    className="px-4 py-2 bg-primary-50 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium shadow-sm whitespace-nowrap"
+                  >
+                    Voir les détails & Proposer
+                  </Link>
                 </div>
-                
-                <p className="text-gray-700 mb-4 line-clamp-2">{request.description}</p>
-                
+
+                <p className="text-gray-700 mb-4 line-clamp-3">{request.description}</p>
+
                 {request.summaryAI && (
-                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Résumé IA :</h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">{request.summaryAI}</p>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+                    <div className="flex items-center gap-2 text-sm font-medium text-indigo-700 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Résumé IA
+                    </div>
+                    <p className="text-sm text-indigo-900 line-clamp-3">{request.summaryAI}</p>
                   </div>
                 )}
               </div>
             </div>
           ))
-        ) : (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-            {filter === 'all'
-              ? 'Aucune demande juridique trouvée.'
-              : `Aucune demande juridique avec le statut "${filter}" trouvée.`}
+        ) : !loading && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune demande ouverte trouvée</h3>
+            <p className="text-gray-500">Il n'y a actuellement aucune demande de client en attente de proposition.</p>
           </div>
         )}
       </div>
-      
-      {/* Request detail modal */}
-      {selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">{selectedRequest.title}</h2>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex justify-center mt-8">
+          <nav className="flex items-center space-x-1 bg-white shadow-sm rounded-lg border border-gray-200 p-1">
+            <button
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page === 1}
+              className="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent flex items-center gap-1 text-sm font-medium transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Précédent
+            </button>
+
+            <div className="h-6 w-px bg-gray-300 mx-1"></div>
+
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(page => (
                 <button
-                  onClick={() => setSelectedRequest(null)}
-                  className="text-gray-500 hover:text-gray-700"
+                  key={page}
+                  onClick={() => handlePageChange(page)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
+                    pagination.page === page
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
-                  ✕
+                  {page}
                 </button>
-              </div>
+              ))}
             </div>
-            
-            <div className="p-6">
-              {!showProposalForm ? (
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex items-center space-x-3 text-sm text-gray-500 mb-4">
-                      <span>Client: {selectedRequest.clientName}</span>
-                      <span>•</span>
-                      <span>Créée le {formatDate(selectedRequest.createdAt)}</span>
-                      <span>•</span>
-                      {getStatusBadge(selectedRequest.status)}
-                    </div>
-                    
-                    <h3 className="text-lg font-medium mb-2">Description</h3>
-                    <p className="text-gray-700 mb-4">{selectedRequest.description}</p>
-                    
-                    {selectedRequest.summaryAI && (
-                      <div className="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Résumé IA :</h3>
-                        <p className="text-sm text-gray-600">{selectedRequest.summaryAI}</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      onClick={() => setSelectedRequest(null)}
-                      className="btn-outline"
-                    >
-                      Fermer
-                    </button>
-                    
-                    {!selectedRequest.hasProposed && selectedRequest.status === 'ouverte' && (
-                      <button
-                        onClick={handleShowProposalForm}
-                        className="btn-primary"
-                      >
-                        Faire une proposition
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmitProposal} className="space-y-6">
-                  <h3 className="text-lg font-medium mb-2">Nouvelle proposition</h3>
-                  
-                  <div className="form-group">
-                    <label htmlFor="proposalText" className="form-label">Détails de votre proposition</label>
-                    <textarea
-                      id="proposalText"
-                      name="proposalText"
-                      value={proposalData.proposalText}
-                      onChange={handleInputChange}
-                      className="form-input h-32"
-                      placeholder="Décrivez votre approche, vos services et comment vous comptez aider le client..."
-                      required
-                    ></textarea>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="form-group">
-                      <label htmlFor="price" className="form-label">Prix proposé (€)</label>
-                      <input
-                        type="number"
-                        id="price"
-                        name="price"
-                        value={proposalData.price}
-                        onChange={handleInputChange}
-                        className="form-input"
-                        placeholder="Ex: 350"
-                        min="0"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="form-group">
-                      <label htmlFor="estimatedDuration" className="form-label">Durée estimée</label>
-                      <input
-                        type="text"
-                        id="estimatedDuration"
-                        name="estimatedDuration"
-                        value={proposalData.estimatedDuration}
-                        onChange={handleInputChange}
-                        className="form-input"
-                        placeholder="Ex: 2-3 semaines"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowProposalForm(false)}
-                      className="btn-outline"
-                    >
-                      Annuler
-                    </button>
-                    
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                    >
-                      Soumettre la proposition
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
+
+            <div className="h-6 w-px bg-gray-300 mx-1"></div>
+
+            <button
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page === pagination.totalPages}
+              className="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent flex items-center gap-1 text-sm font-medium transition-colors"
+            >
+              Suivant
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </nav>
         </div>
       )}
     </div>
   );
 };
 
-export default LegalRequests;
+// Export the renamed component
+export default LawyerLegalRequests;

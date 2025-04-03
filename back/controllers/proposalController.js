@@ -7,23 +7,33 @@ const LegalRequestModel = require('../models/LegalRequestModel');
  * @param {Object} res - Express response object
  */
 exports.createProposal = (req, res) => {
-  const { requestId, proposalText, price } = req.body;
+  // Updated parameters to match frontend form and model
+  const { requestId, rate, estimatedDuration, comment } = req.body;
   const lawyerId = req.user.id;
-  
-  // Validate input
-  if (!requestId || !proposalText || !price) {
+
+  // Validate input (comment is optional)
+  if (!requestId || rate === undefined || !estimatedDuration) {
     return res.status(400).json({
       success: false,
-      message: 'Veuillez fournir tous les champs requis'
+      message: 'Veuillez fournir l\'ID de la demande, le tarif proposé et la durée estimée.'
     });
   }
   
   // Validate price
-  if (isNaN(price) || price <= 0) {
+  // Validate rate (assuming it's a number)
+  const numericRate = parseFloat(rate);
+  if (isNaN(numericRate) || numericRate < 0) { // Allow 0 rate? Adjust if needed.
     return res.status(400).json({
       success: false,
-      message: 'Le prix doit être un nombre positif'
+      message: 'Le tarif proposé doit être un nombre valide.'
     });
+  }
+  // Basic validation for estimatedDuration (string, not empty)
+  if (typeof estimatedDuration !== 'string' || estimatedDuration.trim() === '') {
+      return res.status(400).json({
+          success: false,
+          message: 'La durée estimée doit être une chaîne de caractères non vide.'
+      });
   }
   
   // Check if user is a lawyer
@@ -39,8 +49,9 @@ exports.createProposal = (req, res) => {
     {
       requestId,
       lawyerId,
-      proposalText,
-      price
+      rate: numericRate, // Pass validated numeric rate
+      estimatedDuration: estimatedDuration.trim(),
+      comment: comment || null // Pass comment or null if empty/undefined
     },
     (err, result) => {
       if (err) {
@@ -225,7 +236,8 @@ exports.getLawyerProposals = (req, res) => {
  */
 exports.updateProposal = (req, res) => {
   const { id } = req.params;
-  const { proposalText, price, status } = req.body;
+  // Also allow updating rate, estimatedDuration, comment
+  const { rate, estimatedDuration, comment, status } = req.body;
   const userId = req.user.id;
   
   // Get proposal to check ownership and status
@@ -288,8 +300,9 @@ exports.updateProposal = (req, res) => {
     ProposalModel.updateProposal(
       id,
       {
-        proposalText,
-        price,
+        rate: rate !== undefined ? parseFloat(rate) : undefined, // Validate if present
+        estimatedDuration,
+        comment,
         status
       },
       (err, result) => {

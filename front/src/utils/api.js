@@ -12,6 +12,39 @@ const api = axios.create({
   },
 });
 
+// Add a request interceptor to include the auth token from localStorage
+api.interceptors.request.use(
+  (config) => {
+    // Retrieve the token from local storage
+    const token = localStorage.getItem('token'); // Use the same key as AuthContext
+
+    if (token) {
+      // Add the Authorization header
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    // Handle request error
+    return Promise.reject(error);
+  }
+);
+
+// Optional: Add a response interceptor for handling common responses/errors (like 401)
+// This duplicates logic from AuthContext, consider centralizing if needed
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.error('Unauthorized access - 401 (detected in api.js)');
+      // Potentially trigger logout or redirect, but AuthContext might already handle this
+      // localStorage.removeItem('token');
+      // window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Add a request interceptor to include the auth token
 api.interceptors.request.use(
   (config) => {

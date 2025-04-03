@@ -1,129 +1,77 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext'; // To display user name
+import {
+    FaFolderOpen, FaGavel, FaComments, FaCalendarAlt, FaAddressBook,
+    FaNewspaper, FaFileContract, FaUserCircle, FaRobot, FaCommentDots
+} from 'react-icons/fa'; // Import icons
 
-const Dashboard = () => {
-  const { currentUser } = useAuth();
-  const [stats, setStats] = useState({
-    openRequests: 0,
-    activeProposals: 0,
-    acceptedProposals: 0,
-    earnings: 0
-  });
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
+const DashboardCard = ({ title, description, link, icon: Icon, bgColor = 'bg-white' }) => (
+    <Link
+        to={link}
+        className={`block p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 ${bgColor} border border-gray-200 group`}
+    >
+        <div className="flex items-center mb-3">
+            <div className={`p-2 rounded-full bg-primary-100 text-primary-600 mr-4 group-hover:scale-110 transition-transform`}>
+                <Icon className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 group-hover:text-primary-700">{title}</h2>
+        </div>
+        <p className="text-sm text-gray-600">{description}</p>
+    </Link>
+);
 
-  useEffect(() => {
-    // In a real app, this would fetch data from the API
-    // For now, we'll just simulate loading
-    const fetchData = async () => {
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Mock data
-        setStats({
-          openRequests: 12,
-          activeProposals: 5,
-          acceptedProposals: 3,
-          earnings: 1250
-        });
-        
-        setRecentActivity([
-          { id: 1, type: 'proposal', title: 'Proposition acceptée pour "Contestation de licenciement"', date: '2025-03-20' },
-          { id: 2, type: 'request', title: 'Nouvelle demande : "Litige avec propriétaire"', date: '2025-03-18' },
-          { id: 3, type: 'payment', title: 'Paiement reçu : 450€', date: '2025-03-15' }
-        ]);
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
+function LawyerDashboard() {
+    const { currentUser } = useAuth();
 
-  if (loading) {
+    const features = [
+        { title: 'Mes Dossiers', description: 'Gérez vos dossiers clients et documents associés.', link: '/lawyer/projects', icon: FaFolderOpen },
+        { title: 'Demandes Clients', description: 'Consultez les demandes ouvertes et faites des propositions.', link: '/lawyer/legal-requests', icon: FaGavel },
+        { title: 'Forum Avocats', description: 'Échangez avec vos confrères sur des questions juridiques.', link: '/lawyer/forum', icon: FaComments },
+        { title: 'Assistant IA', description: 'Obtenez de l\'aide pour la recherche et la rédaction.', link: '/lawyer/ai-assistant', icon: FaRobot },
+        { title: 'Messagerie Directe', description: 'Discutez directement avec d\'autres avocats.', link: '/lawyer/chat', icon: FaCommentDots },
+        { title: 'Calendrier', description: 'Organisez votre emploi du temps et vos échéances.', link: '/lawyer/calendar', icon: FaCalendarAlt },
+        { title: 'Contacts', description: 'Gérez votre carnet d\'adresses professionnel.', link: '/lawyer/contacts', icon: FaAddressBook },
+        { title: 'Actualités Juridiques', description: 'Restez informé des dernières évolutions du droit.', link: '/lawyer/legal-news', icon: FaNewspaper },
+        { title: 'Mon Abonnement', description: 'Consultez et gérez votre plan d\'abonnement.', link: '/lawyer/subscription', icon: FaFileContract },
+        { title: 'Mon Profil', description: 'Mettez à jour vos informations personnelles et professionnelles.', link: '/lawyer/profile', icon: FaUserCircle },
+    ];
+
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
+        <div className="space-y-8">
+            {/* Welcome Header */}
+            <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-lg p-6 md:p-8 text-white">
+                <h1 className="text-3xl md:text-4xl font-bold mb-2">Bienvenue, {currentUser?.name || 'Avocat'} !</h1>
+                <p className="text-lg opacity-90">Votre tableau de bord centralisé pour AvocatAssist.</p>
+                {/* Optional: Add quick stats here like open cases, unread messages etc. */}
+            </div>
+
+            {/* Feature Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {features.map((feature) => (
+                    <DashboardCard
+                        key={feature.title}
+                        title={feature.title}
+                        description={feature.description}
+                        link={feature.link}
+                        icon={feature.icon}
+                    />
+                ))}
+            </div>
+
+             {/* Optional: Quick Actions or Recent Activity Section */}
+             {/*
+             <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Accès Rapide</h2>
+                 <div className="flex flex-wrap gap-4">
+                     <Link to="/lawyer/projects/new" className="text-primary-600 hover:underline">Créer un dossier</Link>
+                     <Link to="/lawyer/legal-requests" className="text-primary-600 hover:underline">Voir les demandes</Link>
+                     <Link to="/lawyer/forum" className="text-primary-600 hover:underline">Accéder au forum</Link>
+                 </div>
+             </div>
+             */}
+        </div>
     );
-  }
+}
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tableau de bord</h1>
-        <p className="text-gray-600">Bienvenue, {currentUser?.name}</p>
-      </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium">Demandes ouvertes</h3>
-          <p className="text-2xl font-bold">{stats.openRequests}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium">Propositions actives</h3>
-          <p className="text-2xl font-bold">{stats.activeProposals}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium">Propositions acceptées</h3>
-          <p className="text-2xl font-bold">{stats.acceptedProposals}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium">Revenus du mois</h3>
-          <p className="text-2xl font-bold">{stats.earnings}€</p>
-        </div>
-      </div>
-      
-      {/* Recent Activity */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-4">Activité récente</h2>
-        {recentActivity.length > 0 ? (
-          <div className="space-y-4">
-            {recentActivity.map(activity => (
-              <div key={activity.id} className="flex items-center justify-between border-b pb-2">
-                <div>
-                  <p className="font-medium">{activity.title}</p>
-                  <p className="text-sm text-gray-500">
-                    {activity.type === 'proposal' && 'Proposition'}
-                    {activity.type === 'request' && 'Demande juridique'}
-                    {activity.type === 'payment' && 'Paiement'}
-                  </p>
-                </div>
-                <p className="text-sm text-gray-500">{activity.date}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500">Aucune activité récente</p>
-        )}
-      </div>
-      
-      {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-4">Actions rapides</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary">Voir les demandes</button>
-          <button className="btn-primary">Gérer les propositions</button>
-          <button className="btn-primary">Consulter l'IA</button>
-        </div>
-      </div>
-      
-      {/* Specialties */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-4">Mes spécialités</h2>
-        <div className="flex flex-wrap gap-2">
-          <span className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">Droit du travail</span>
-          <span className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">Droit immobilier</span>
-          <span className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">Droit de la consommation</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Dashboard;
+export default LawyerDashboard;

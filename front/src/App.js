@@ -7,7 +7,9 @@ import './App.css';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import AdminLayout from './layouts/AdminLayout';
-import ChatLayout from './layouts/ChatLayout'; // Import the new ChatLayout
+import ChatLayout from './layouts/ChatLayout'; // Keep for now, might remove if ClientLayout handles all
+import LawyerLayout from './layouts/LawyerLayout';
+import ClientLayout from './layouts/ClientLayout'; // Import the new ClientLayout
 
 // Public Pages
 import LandingPage from './pages/public/LandingPage';
@@ -28,7 +30,7 @@ const ClientTransactions = lazy(() => import('./pages/client/Transactions'));
 const ClientSubscriptionPage = lazy(() => import('./pages/client/SubscriptionPage')); // Updated import path
 const ClientAiAssistant = lazy(() => import('./pages/client/AiAssistant'));
 const ClientTemplates = lazy(() => import('./pages/client/Templates'));
-const CreateProject = lazy(() => import('./pages/client/CreateProject')); // Import CreateProject
+// const CreateProject = lazy(() => import('./pages/client/CreateProject')); // Remove import for dedicated page
 const QuickAiAssistant = lazy(() => import('./pages/client/QuickAiAssistant')); // Import QuickAiAssistant
 const ProjectChat = lazy(() => import('./pages/client/ProjectChat')); // Import ProjectChat for dossier
 const ProjectsList = lazy(() => import('./pages/client/ProjectsList')); // Import ProjectsList
@@ -40,7 +42,19 @@ const LawyerLegalRequests = lazy(() => import('./pages/lawyer/LegalRequests'));
 const LawyerProposals = lazy(() => import('./pages/lawyer/Proposals'));
 const LawyerTransactions = lazy(() => import('./pages/lawyer/Transactions'));
 const LawyerSubscription = lazy(() => import('./pages/lawyer/Subscription'));
-const LawyerAiAssistant = lazy(() => import('./pages/lawyer/AiAssistant'));
+// const LawyerAiAssistant = lazy(() => import('./pages/lawyer/AiAssistant')); // Remove old component
+const LawyerQuickAiAssistant = lazy(() => import('./pages/lawyer/QuickAiAssistant')); // Add new general chat
+const LawyerProjectChat = lazy(() => import('./pages/lawyer/ProjectChat')); // Add new project chat
+const LawyerProjectsList = lazy(() => import('./pages/lawyer/ProjectsList')); // Add project list
+const LawyerCreateProject = lazy(() => import('./pages/lawyer/CreateProject')); // Add create project form
+const LawyerLegalRequestDetail = lazy(() => import('./pages/lawyer/LawyerLegalRequestDetail')); // Add detail view
+const ForumPage = lazy(() => import('./pages/lawyer/ForumPage')); // Add Forum list page
+const ForumTopicPage = lazy(() => import('./pages/lawyer/ForumTopicPage')); // Add Forum topic page
+const LawyerChatPage = lazy(() => import('./pages/lawyer/LawyerChatPage')); // Add Lawyer direct chat page
+const CalendarPage = lazy(() => import('./pages/lawyer/CalendarPage')); // Add Calendar page
+const ContactsPage = lazy(() => import('./pages/lawyer/ContactsPage')); // Add Contacts page
+const LegalNewsPage = lazy(() => import('./pages/lawyer/LegalNewsPage')); // Add Legal News page
+const LawyerTemplatesPage = lazy(() => import('./pages/lawyer/TemplatesPage')); // Add Lawyer Templates page
 
 // Admin Pages
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -129,9 +143,10 @@ function App() {
         </Route>
         
         {/* Client routes */}
+        {/* Use ClientLayout for main client routes */}
         <Route path="/client" element={
           <ProtectedRoute allowedRoles={['client']}>
-            <MainLayout />
+            <ClientLayout />
           </ProtectedRoute>
         }>
           <Route path="dashboard" element={<ClientDashboard />} />
@@ -147,56 +162,101 @@ function App() {
         </Route>
         
         {/* Chat routes with ChatLayout */}
+        {/* Use ClientLayout for chat routes */}
         <Route path="/client/chats" element={
           <ProtectedRoute allowedRoles={['client']}>
-            <ChatLayout />
+            <ClientLayout /> {/* Use ClientLayout */}
           </ProtectedRoute>
         }>
           <Route path=":chatId" element={<ClientAiAssistant />} /> {/* Route for specific chat */}
         </Route>
         
         {/* Project-based chat routes with ChatLayout */}
+        {/* Use ClientLayout for project chat routes */}
         <Route path="/client/dossier" element={
           <ProtectedRoute allowedRoles={['client']}>
-            <ChatLayout />
+            <ClientLayout /> {/* Use ClientLayout */}
           </ProtectedRoute>
         }>
           <Route path=":projectId" element={<ProjectChat />} /> {/* Route for project-based chat */}
         </Route>
         
         {/* AI Assistant route with ChatLayout */}
+        {/* Use ClientLayout for AI assistant route */}
         <Route path="/client/ai-assistant" element={
           <ProtectedRoute allowedRoles={['client']}>
-            <ChatLayout />
+            <ClientLayout /> {/* Use ClientLayout */}
           </ProtectedRoute>
         }>
           <Route index element={<QuickAiAssistant />} /> {/* Use index route */}
         </Route>
         
         {/* Additional client routes */}
+        {/* This additional client route group might be redundant now if all routes are under the first ClientLayout */}
+        {/* Let's keep it for now but ensure it uses ClientLayout */}
         <Route path="/client" element={
           <ProtectedRoute allowedRoles={['client']}>
-            <MainLayout />
+            <ClientLayout />
           </ProtectedRoute>
         }>
           <Route path="templates" element={<ClientTemplates />} />
-          <Route path="projects/new" element={<CreateProject />} /> {/* Add route for creating projects */}
+          {/* <Route path="projects/new" element={<CreateProject />} /> */} {/* Remove route for dedicated page */}
           <Route path="projects" element={<ProjectsList />} /> {/* Add route for listing projects */}
         </Route>
         
         {/* Lawyer routes */}
+        {/* Use LawyerLayout for all lawyer routes */}
         <Route path="/lawyer" element={
           <ProtectedRoute allowedRoles={['lawyer']}>
-            <MainLayout />
+            <LawyerLayout />
           </ProtectedRoute>
         }>
           <Route path="dashboard" element={<LawyerDashboard />} />
           <Route path="profile" element={<LawyerProfile />} />
-          <Route path="legal-requests" element={<LawyerLegalRequests />} />
+          <Route path="legal-requests" element={<LawyerLegalRequests />} /> {/* List view */}
+          <Route path="legal-requests/:id" element={<LawyerLegalRequestDetail />} /> {/* Detail view */}
           <Route path="proposals" element={<LawyerProposals />} />
           <Route path="transactions" element={<LawyerTransactions />} />
           <Route path="subscription" element={<LawyerSubscription />} />
-          <Route path="ai-assistant" element={<LawyerAiAssistant />} />
+          <Route path="projects" element={<LawyerProjectsList />} /> {/* Add route for listing projects */}
+          <Route path="projects/new" element={<LawyerCreateProject />} /> {/* Add route for creating projects */}
+          <Route path="forum" element={<ForumPage />} /> {/* Add route for forum list */}
+          <Route path="forum/topics/:topicId" element={<ForumTopicPage />} /> {/* Add route for forum topic */}
+          <Route path="calendar" element={<CalendarPage />} /> {/* Add route for calendar */}
+          <Route path="contacts" element={<ContactsPage />} /> {/* Add route for contacts */}
+          <Route path="templates" element={<LawyerTemplatesPage />} /> {/* Add route for lawyer templates */}
+          <Route path="legal-news" element={<LegalNewsPage />} /> {/* Add route for legal news */}
+          {/* Note: Lawyer Chat route added below using ChatLayout */}
+          {/* <Route path="ai-assistant" element={<LawyerAiAssistant />} /> */} {/* Remove old route */}
+        </Route>
+
+        {/* Lawyer AI Assistant route with LawyerLayout */}
+        <Route path="/lawyer/ai-assistant" element={
+          <ProtectedRoute allowedRoles={['lawyer']}>
+            <LawyerLayout /> {/* Use LawyerLayout */}
+          </ProtectedRoute>
+        }>
+          <Route index element={<LawyerQuickAiAssistant />} />
+        </Route>
+
+        {/* Lawyer Project-based chat routes with LawyerLayout */}
+        <Route path="/lawyer/dossier" element={ // Project Chat
+          <ProtectedRoute allowedRoles={['lawyer']}>
+            <LawyerLayout /> {/* Use LawyerLayout */}
+          </ProtectedRoute>
+        }>
+          <Route path=":projectId" element={<LawyerProjectChat />} />
+        </Route>
+
+        {/* Lawyer Direct Chat route with LawyerLayout */}
+        <Route path="/lawyer/chat" element={
+          <ProtectedRoute allowedRoles={['lawyer']}>
+            <LawyerLayout /> {/* Use LawyerLayout */}
+          </ProtectedRoute>
+        }>
+          {/* The LawyerChatPage component itself handles displaying the list and the selected chat */}
+          <Route index element={<LawyerChatPage />} />
+          {/* Optionally, add a route like /lawyer/chat/:otherUserId if needed later */}
         </Route>
         
         {/* Admin routes */}

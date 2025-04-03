@@ -331,7 +331,155 @@ const initializeDatabase = () => {
         UPDATE ClientSubscriptions SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
       END;
     `);
-    
+
+    // Create ForumTopics table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS ForumTopics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lawyerId INTEGER NOT NULL, -- User who created the topic (must be lawyer)
+        title TEXT NOT NULL,
+        category TEXT, -- Optional category
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        lastActivityAt DATETIME DEFAULT CURRENT_TIMESTAMP, -- For sorting
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create ForumPosts table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS ForumPosts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topicId INTEGER NOT NULL,
+        lawyerId INTEGER NOT NULL, -- User who wrote the post (must be lawyer)
+        content TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(topicId) REFERENCES ForumTopics(id) ON DELETE CASCADE,
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Trigger to update ForumTopics.lastActivityAt when a new post is inserted
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_forum_topic_activity
+      AFTER INSERT ON ForumPosts
+      FOR EACH ROW
+      BEGIN
+        UPDATE ForumTopics SET lastActivityAt = CURRENT_TIMESTAMP WHERE id = NEW.topicId;
+      END;
+    `);
+
+    // Create DirectMessages table for lawyer-to-lawyer chat
+    db.run(`
+      CREATE TABLE IF NOT EXISTS DirectMessages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        senderId INTEGER NOT NULL,
+        receiverId INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        readAt DATETIME NULL, -- Timestamp when the message was read
+        FOREIGN KEY(senderId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(receiverId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+// Create CalendarEvents table for lawyer personal calendar
+db.run(`
+  CREATE TABLE IF NOT EXISTS CalendarEvents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lawyerId INTEGER NOT NULL, -- Link to the lawyer user
+    title TEXT NOT NULL,
+    start DATETIME NOT NULL, -- ISO 8601 format recommended (YYYY-MM-DDTHH:MM:SS)
+    end DATETIME,            -- Optional end time
+    allDay BOOLEAN DEFAULT 0,
+    description TEXT,
+    location TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE
+  )
+`);
+
+// Trigger to update CalendarEvents.updatedAt
+db.run(`
+  CREATE TRIGGER IF NOT EXISTS update_calendar_event_timestamp
+  AFTER UPDATE ON CalendarEvents
+  FOR EACH ROW
+  BEGIN
+    UPDATE CalendarEvents SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+  END;
+`);
+    // Create Contacts table for lawyer personal contact book
+    db.run(`
+      CREATE TABLE IF NOT EXISTS Contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lawyerId INTEGER NOT NULL, -- The lawyer who owns this contact
+        name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        company TEXT,
+        notes TEXT,
+        isClient BOOLEAN DEFAULT 0, -- Flag if the contact is also a client user in the system
+        clientId INTEGER NULL,     -- Optional link to Users table if isClient is true
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(clientId) REFERENCES Users(id) ON DELETE SET NULL -- Link to client user if applicable
+      )
+    `);
+
+     // Trigger to update Contacts.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_contact_timestamp
+      AFTER UPDATE ON Contacts
+      FOR EACH ROW
+      BEGIN
+        UPDATE Contacts SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
+    // Create LegalNewsItems table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS LegalNewsItems (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        link TEXT UNIQUE NOT NULL, -- Use link as unique identifier to avoid duplicates
+        source TEXT,             -- Name of the RSS feed source
+        pubDate DATETIME,          -- Publication date from the feed
+        description TEXT,        -- Snippet or description from the feed
+        fetchedAt DATETIME DEFAULT CURRENT_TIMESTAMP -- When we fetched it
+      )
+    `);
+    // Add index for faster querying by date
+    db.run(`CREATE INDEX IF NOT EXISTS idx_legalnewsitems_pubdate ON LegalNewsItems (pubDate DESC)`);
+    // Create LawyerTemplates table for custom lawyer templates
+    db.run(`
+      CREATE TABLE IF NOT EXISTS LawyerTemplates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lawyerId INTEGER NOT NULL, -- The lawyer who owns this template
+        name TEXT NOT NULL,        -- Template name/title
+        description TEXT,
+        category TEXT,             -- Optional category
+        content TEXT NOT NULL,     -- The template content with placeholders like {variableName} or [variableName]
+        variables TEXT,            -- JSON array of variable names used, e.g., '["clientName", "caseNumber"]'
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(lawyerId) REFERENCES Users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Trigger to update LawyerTemplates.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_lawyer_template_timestamp
+      AFTER UPDATE ON LawyerTemplates
+      FOR EACH ROW
+      BEGIN
+        UPDATE LawyerTemplates SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
+// Insert default subscription plans if they don't exist
+
+// Insert default subscription plans if they don't exist
+// Insert default subscription plans if they don't exist
     // Insert default subscription plans if they don't exist
     db.get('SELECT COUNT(*) as count FROM SubscriptionPlans', (err, result) => {
       if (err) {

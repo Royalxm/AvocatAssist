@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const aiController = require('../controllers/aiController');
-const { auth } = require('../middleware/auth');
+const { auth, isLawyer } = require('../middleware/auth'); // Import isLawyer
 
 const router = express.Router();
 
@@ -168,5 +168,6 @@ router.get(
   auth,
   aiController.getAvailableTemplates
 );
+// --- Lawyer Specific AI Routes (Removed as per revised plan) ---
 
 module.exports = router;

@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios'; // Import axios directly
+import api from '../../utils/api'; // Use the correct api instance
 import { useAuth } from '../../contexts/AuthContext';
 
-const CreateProject = () => {
+// Renamed and adapted for modal use
+const CreateProjectForm = ({ onSuccess, onCancel }) => {
   const [title, setTitle] = useState('');
   const [type, setType] = useState(''); // e.g., 'divorce', 'contrat', 'litige', etc.
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
 
   // Define project types - you might fetch these from an API later
@@ -33,8 +32,8 @@ const CreateProject = () => {
     setError(null);
 
     try {
-      // 1. Create the project
-      const projectResponse = await axios.post('/projects', { // Use axios directly
+      // Create the project - backend now handles chat creation automatically
+      const projectResponse = await api.post('/projects', {
         title,
         type,
         description,
@@ -43,45 +42,41 @@ const CreateProject = () => {
       if (!projectResponse.data.success) {
         throw new Error(projectResponse.data.message || 'Erreur lors de la création du dossier.');
       }
-      const projectId = projectResponse.data.projectId;
+      const newProject = { // Construct a basic project object to pass back
+          id: projectResponse.data.projectId,
+          title,
+          type,
+          description,
+          // Add other relevant fields if returned by API and needed
+      };
 
-      // 2. Create the initial chat for the project
-      const chatResponse = await axios.post('/chats', { // Use axios directly
-        projectId: projectId,
-        title: `Chat pour dossier: ${title}`, // Initial chat title
-      });
-
-      if (!chatResponse.data.id) { // Assuming the response contains the new chat object with id
-         throw new Error(chatResponse.data.message || 'Erreur lors de la création du chat initial.');
+      // Call the onSuccess callback passed from the parent (ProjectsList)
+      if (onSuccess) {
+        onSuccess(newProject); // Pass the newly created project data
       }
-      const chatId = chatResponse.data.id;
-
-      // 3. Navigate to the new project chat page
-      // Using the new route /client/dossier/:projectId
-      navigate(`/client/dossier/${projectId}`);
 
     } catch (err) {
-      console.error('Error creating project or chat:', err);
+      console.error('Error creating project:', err);
       setError(err.response?.data?.message || err.message || 'Une erreur est survenue.');
-      setLoading(false);
+      setLoading(false); // Keep modal open on error
     }
-    // No need to setLoading(false) here if navigation occurs on success
+    // Don't set loading false on success, as the modal will close
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow border border-gray-200">
-      <h1 className="text-2xl font-bold mb-6">Créer un nouveau dossier</h1>
-      
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
+    // Removed outer div with max-width, modal handles sizing
+    <form onSubmit={handleSubmit} className="space-y-4">
+       <h2 className="text-xl font-semibold mb-4 text-gray-700">Nouveau Dossier</h2> {/* Added title for modal context */}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
+
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="modal-title" className="block text-sm font-medium text-gray-700">
             Nom du dossier <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            id="title"
+            id="modal-title" // Changed id to avoid potential conflicts
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -91,11 +86,11 @@ const CreateProject = () => {
         </div>
 
         <div>
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="modal-type" className="block text-sm font-medium text-gray-700">
             Type de problème juridique <span className="text-red-500">*</span>
           </label>
           <select
-            id="type"
+            id="modal-type" // Changed id
             value={type}
             onChange={(e) => setType(e.target.value)}
             required
@@ -109,11 +104,11 @@ const CreateProject = () => {
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="modal-description" className="block text-sm font-medium text-gray-700">
             Description brève (facultatif)
           </label>
           <textarea
-            id="description"
+            id="modal-description" // Changed id
             rows="3"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -122,18 +117,25 @@ const CreateProject = () => {
           ></textarea>
         </div>
 
-        <div>
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+        {/* Modal Actions */}
+        <div className="flex justify-end gap-3 pt-4">
+           <button
+            type="button"
+            onClick={onCancel} // Use onCancel prop
+            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            {loading ? 'Création en cours...' : 'Créer le dossier et démarrer le chat'}
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+          >
+            {loading ? 'Création...' : 'Créer Dossier'}
           </button>
         </div>
-      </form>
-    </div>
+    </form>
   );
 };
 
-export default CreateProject;
+export default CreateProjectForm;

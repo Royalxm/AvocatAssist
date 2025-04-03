@@ -1,21 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../utils/api'; // Use correct api instance
+import api from '../../utils/api'; // Corrected import
 import { Link } from 'react-router-dom';
-import { FaTrash, FaPlus, FaFolderOpen } from 'react-icons/fa'; // Import icons
-import Modal from '../../components/Modal'; // Import Modal component
-import CreateProjectForm from '../../components/client/CreateProjectForm'; // Import the form component
-const ProjectsList = () => {
+import { FaTrash, FaFolderOpen } from 'react-icons/fa'; // Import icons
+
+// Renamed component
+const LawyerProjectsList = () => {
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false); // State for modal
 
     const fetchProjects = async () => {
         setLoading(true);
         try {
-            // Use api instance (token handled automatically)
-            const response = await api.get('/projects'); // Use correct endpoint
-            setProjects(response.data.projects || []); // Expect data in response.data.projects
+            // Use api (token is handled automatically)
+            const response = await api.get('/projects'); // Use 'api'
+            setProjects(response.data.projects || []);
             setError(null);
         } catch (err) {
             console.error("Error fetching projects:", err);
@@ -33,26 +32,26 @@ const ProjectsList = () => {
     }, []);
 
     const handleDeleteProject = async (projectId) => {
-        if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+        if (window.confirm('Êtes-vous sûr de vouloir supprimer ce dossier ? Cette action est irréversible.')) {
             try {
-                // Use api instance (token handled automatically)
-                await api.delete(`/projects/${projectId}`);
+                // Use api (token is handled automatically)
+                await api.delete(`/projects/${projectId}`); // Use 'api'
                 fetchProjects(); // Refresh list
             } catch (err) {
                 console.error("Error deleting project:", err);
-                alert('Failed to delete project.');
+                alert('Échec de la suppression du dossier.');
             }
         }
     };
 
-    // Helper to get status badge class
+    // Helper to get status badge class (remains the same)
     const getStatusBadgeClass = (status) => {
         switch (status?.toLowerCase()) {
             case 'active':
-            case 'ouvert': // Assuming 'active' or 'ouvert' means active
+            case 'ouvert':
                 return 'bg-green-100 text-green-800';
             case 'inactive':
-            case 'fermé': // Assuming 'inactive' or 'fermé' means inactive
+            case 'fermé':
                 return 'bg-red-100 text-red-800';
             default:
                 return 'bg-gray-100 text-gray-800';
@@ -62,31 +61,22 @@ const ProjectsList = () => {
     if (loading) return <div className="p-4 text-center">Chargement des dossiers...</div>;
     if (error) return <div className="p-4 text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>;
 
-    // Handler for successful project creation from modal
-    const handleProjectCreated = (newProject) => {
-        setIsModalOpen(false); // Close modal
-        fetchProjects(); // Refresh the list
-        // Optionally navigate to the new project's chat page
-        // navigate(`/client/dossier/${newProject.id}`);
-    };
-
     return (
         <div className="container mx-auto p-4 md:p-6">
-             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Mes Dossiers</h1>
-                <button
-                    onClick={() => setIsModalOpen(true)} // Open modal on click
-                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                    <FaPlus className="mr-2 -ml-1 h-5 w-5" />
-                    Créer un dossier
-                </button>
+            <div className="flex justify-between items-center mb-6">
+                 <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Mes Dossiers</h1>
+                 {/* Optional: Add Create Button Link */}
+                 {/* <Link to="/lawyer/projects/new" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                     Créer un dossier
+                 </Link> */}
             </div>
+
             {projects.length === 0 ? (
                 <div className="text-center py-10 px-6 bg-white rounded-lg shadow border border-gray-200">
-                    <FaFolderOpen className="mx-auto h-12 w-12 text-gray-400" /> {/* Use icon */}
+                    <FaFolderOpen className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun dossier</h3>
-                    <p className="mt-1 text-sm text-gray-500">Commencez par créer un nouveau dossier en utilisant le bouton ci-dessus.</p>
+                    <p className="mt-1 text-sm text-gray-500">Commencez par créer un nouveau dossier.</p>
+                    {/* Optional: Add create button link here */}
                 </div>
 
             ) : (
@@ -95,8 +85,8 @@ const ProjectsList = () => {
                         <li key={project.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
                             <div className="p-5 flex flex-col sm:flex-row justify-between items-start gap-4">
                                 <div className="flex-grow mb-3 sm:mb-0">
-                                    {/* Link to the project chat/details page */}
-                                    <Link to={`/client/dossier/${project.id}`} className="text-lg font-semibold text-primary-700 hover:text-primary-800 hover:underline mb-1 block">
+                                    {/* Link to the lawyer's project chat page */}
+                                    <Link to={`/lawyer/dossier/${project.id}`} className="text-lg font-semibold text-primary-700 hover:text-primary-800 hover:underline mb-1 block">
                                         {project.title}
                                     </Link>
                                     <p className="text-sm text-gray-600 mb-3">{project.description || <span className="italic text-gray-400">Aucune description</span>}</p>
@@ -111,7 +101,7 @@ const ProjectsList = () => {
                                         {/* Project Status Badge */}
                                         {project.status && (
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-medium ${getStatusBadgeClass(project.status)}`}>
-                                                {project.status.charAt(0).toUpperCase() + project.status.slice(1)} {/* Capitalize status */}
+                                                {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
                                             </span>
                                         )}
                                         {/* Creation Date */}
@@ -137,20 +127,9 @@ const ProjectsList = () => {
                     ))}
                 </ul>
             )}
-
-            {/* Modal for Creating Project */}
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Créer un nouveau dossier"
-            >
-                <CreateProjectForm
-                    onSuccess={handleProjectCreated}
-                    onCancel={() => setIsModalOpen(false)}
-                />
-            </Modal>
         </div>
     );
 };
 
-export default ProjectsList;
+// Export the renamed component
+export default LawyerProjectsList;

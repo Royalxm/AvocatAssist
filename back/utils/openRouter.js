@@ -362,6 +362,66 @@ ${remainingPlaceholders.join('\n')}`; // Added Markdown instruction
       console.error('Document generation error:', error);
       throw error;
     }
+  },
+
+  /**
+   * Perform legal research based on a lawyer's query
+   * @param {String} query - The research query
+   * @param {Object} options - Additional options for createChatCompletion
+   * @returns {Promise<String>} - Research results
+   */
+  performLegalResearch: async (query, options = {}) => {
+    try {
+      const prompt = `Vous êtes un assistant de recherche juridique expert pour avocats expérimentés, spécialisé en droit français. Répondez à la requête suivante de manière approfondie, précise et structurée. Citez les sources pertinentes (articles de loi, jurisprudence majeure) lorsque possible. Adoptez un ton professionnel et technique. Formatez la réponse en Markdown.
+Requête: ${query}`;
+
+      const messages = [{ role: 'user', content: prompt }];
+      const response = await OpenRouterClient.createChatCompletion(messages, {
+        temperature: 0.3, // Lower temperature for factual accuracy
+        max_tokens: 2500,
+        ...options
+      });
+
+      if (!response || !response.choices || response.choices.length === 0) {
+        console.error('Invalid response received from OpenRouter for legal research:', response);
+        throw new Error('Failed to get valid response from AI service for legal research.');
+      }
+
+      return response.choices[0].message.content;
+    } catch (error) {
+      console.error('Legal research generation error:', error);
+      throw error; // Re-throw to be handled by the controller
+    }
+  },
+
+  /**
+   * Assist a lawyer with drafting legal documents or clauses
+   * @param {String} description - Description of the document/clause needed
+   * @param {Object} options - Additional options for createChatCompletion
+   * @returns {Promise<String>} - Drafted text
+   */
+  assistDrafting: async (description, options = {}) => {
+    try {
+      const prompt = `Vous êtes un assistant expert en rédaction juridique pour avocats, spécialisé en droit français. Rédigez un projet de document ou de clause basé sur la description suivante. Assurez-vous que la rédaction est claire, précise, juridiquement solide et conforme aux standards professionnels. Utilisez un langage formel. Formatez la réponse en Markdown, en incluant des placeholders clairs (ex: [Nom de la partie], [Date d'effet]) si nécessaire.
+Description de la demande: ${description}`;
+
+      const messages = [{ role: 'user', content: prompt }];
+      const response = await OpenRouterClient.createChatCompletion(messages, {
+        temperature: 0.5, // Slightly higher temperature for creative drafting
+        max_tokens: 2500,
+        ...options
+      });
+
+      if (!response || !response.choices || response.choices.length === 0) {
+        console.error('Invalid response received from OpenRouter for drafting assistance:', response);
+        throw new Error('Failed to get valid response from AI service for drafting assistance.');
+      }
+
+      return response.choices[0].message.content;
+    } catch (error) {
+      console.error('Drafting assistance generation error:', error);
+      throw error; // Re-throw to be handled by the controller
+    }
   }
 };
 

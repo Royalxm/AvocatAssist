@@ -453,6 +453,8 @@ const getAvailableTemplates = asyncHandler(async (req, res) => {
   }
 });
 
+// Lawyer-specific functions performLegalResearch and assistDrafting removed as per revised plan
+
 module.exports = {
   askQuestion,
   getUserQueries,

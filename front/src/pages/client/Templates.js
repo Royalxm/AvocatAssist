@@ -1,251 +1,57 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../utils/api'; // Import the api instance
+import { FaDownload, FaEdit, FaArrowLeft } from 'react-icons/fa'; // Import icons
 
 const Templates = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  // Category filter might not be directly supported by API, adjust if needed
+  // const [categoryFilter, setCategoryFilter] = useState('all');
   const [formData, setFormData] = useState({});
   const [previewMode, setPreviewMode] = useState(false);
+  const [generating, setGenerating] = useState(false); // State for generation loading
   const [generatedDocument, setGeneratedDocument] = useState('');
+  const [error, setError] = useState(null); // State for errors
   
   useEffect(() => {
-    // In a real app, this would fetch data from the API
-    // For now, we'll just simulate loading
+    // Fetch templates from API
     const fetchTemplates = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Mock data
-        const mockTemplates = [
-          {
-            id: 1,
-            title: 'Lettre de démission sans préavis',
-            description: 'Modèle de lettre pour démissionner sans effectuer de préavis, dans les cas autorisés par la loi.',
-            category: 'Travail',
-            fields: [
-              { name: 'employerName', label: 'Nom de l\'employeur', type: 'text', required: true },
-              { name: 'employerAddress', label: 'Adresse de l\'employeur', type: 'textarea', required: true },
-              { name: 'position', label: 'Poste occupé', type: 'text', required: true },
-              { name: 'reason', label: 'Motif de démission sans préavis', type: 'select', required: true, options: [
-                'Faute grave de l\'employeur',
-                'Raisons de santé',
-                'Embauche en CDI après CDD',
-                'Autre'
-              ] },
-              { name: 'otherReason', label: 'Précisez le motif', type: 'textarea', required: false, conditionalOn: { field: 'reason', value: 'Autre' } }
-            ],
-            template: `
-{employerName}
-{employerAddress}
-
-[Votre nom]
-[Votre adresse]
-[Votre email]
-[Votre téléphone]
-
-[Lieu], le [Date]
-
-Objet : Démission sans préavis
-
-Madame, Monsieur,
-
-Par la présente, je vous informe de ma décision de démissionner de mon poste de {position} que j'occupe au sein de votre entreprise depuis le [date d'embauche].
-
-Conformément aux dispositions légales, je suis dispensé(e) d'effectuer un préavis pour le motif suivant : {reason}{otherReason ? " - " + otherReason : ""}.
-
-Je vous remercie de bien vouloir accuser réception de cette lettre et de me faire parvenir mon certificat de travail, mon reçu pour solde de tout compte ainsi que mon attestation Pôle Emploi.
-
-Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
-
-[Votre signature]
-[Votre nom]
-`
-          },
-          {
-            id: 2,
-            title: 'Lettre de réclamation',
-            description: 'Modèle de lettre pour formuler une réclamation auprès d\'un professionnel ou d\'une entreprise.',
-            category: 'Consommation',
-            fields: [
-              { name: 'companyName', label: 'Nom de l\'entreprise', type: 'text', required: true },
-              { name: 'companyAddress', label: 'Adresse de l\'entreprise', type: 'textarea', required: true },
-              { name: 'productService', label: 'Produit ou service concerné', type: 'text', required: true },
-              { name: 'purchaseDate', label: 'Date d\'achat ou de commande', type: 'date', required: true },
-              { name: 'issueDescription', label: 'Description du problème', type: 'textarea', required: true },
-              { name: 'requestType', label: 'Type de demande', type: 'select', required: true, options: [
-                'Remboursement',
-                'Échange',
-                'Réparation',
-                'Dédommagement',
-                'Autre'
-              ] },
-              { name: 'otherRequest', label: 'Précisez votre demande', type: 'textarea', required: false, conditionalOn: { field: 'requestType', value: 'Autre' } }
-            ],
-            template: `
-{companyName}
-{companyAddress}
-
-[Votre nom]
-[Votre adresse]
-[Votre email]
-[Votre téléphone]
-
-[Lieu], le [Date]
-
-Objet : Réclamation concernant {productService}
-
-Madame, Monsieur,
-
-J'ai acheté/commandé {productService} auprès de votre entreprise en date du {purchaseDate}.
-
-Malheureusement, j'ai rencontré le problème suivant :
-{issueDescription}
-
-Conformément aux dispositions du Code de la consommation, je vous demande de procéder à {requestType === 'Autre' ? otherRequest : requestType.toLowerCase()} dans les plus brefs délais.
-
-Sans réponse satisfaisante de votre part sous 15 jours, je me verrai contraint(e) de saisir les services compétents (association de consommateurs, médiateur, tribunal).
-
-Je vous remercie par avance de l'attention que vous porterez à ma demande et vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
-
-[Votre signature]
-[Votre nom]
-`
-          },
-          {
-            id: 3,
-            title: 'Mise en demeure pour troubles de voisinage',
-            description: 'Modèle de lettre pour mettre en demeure un voisin de cesser des troubles de voisinage.',
-            category: 'Immobilier',
-            fields: [
-              { name: 'neighborName', label: 'Nom du voisin', type: 'text', required: true },
-              { name: 'neighborAddress', label: 'Adresse du voisin', type: 'textarea', required: true },
-              { name: 'troubleType', label: 'Type de trouble', type: 'select', required: true, options: [
-                'Bruit',
-                'Odeurs',
-                'Dégradations',
-                'Empiètement',
-                'Autre'
-              ] },
-              { name: 'otherTroubleType', label: 'Précisez le type de trouble', type: 'textarea', required: false, conditionalOn: { field: 'troubleType', value: 'Autre' } },
-              { name: 'troubleDescription', label: 'Description détaillée des troubles', type: 'textarea', required: true },
-              { name: 'troubleDates', label: 'Dates et heures des troubles', type: 'textarea', required: true },
-              { name: 'previousAttempts', label: 'Démarches déjà entreprises', type: 'textarea', required: false }
-            ],
-            template: `
-{neighborName}
-{neighborAddress}
-
-[Votre nom]
-[Votre adresse]
-[Votre email]
-[Votre téléphone]
-
-[Lieu], le [Date]
-
-Objet : Mise en demeure - Troubles de voisinage ({troubleType === 'Autre' ? otherTroubleType : troubleType})
-
-Lettre recommandée avec accusé de réception
-
-Madame, Monsieur,
-
-Je me permets de vous adresser ce courrier suite aux troubles de voisinage que vous occasionnez et qui perturbent gravement ma tranquillité.
-
-En effet, {troubleDescription}
-
-Ces troubles sont survenus aux dates et heures suivantes : {troubleDates}
-
-{previousAttempts ? "Malgré mes précédentes tentatives de résolution amiable (" + previousAttempts + "), ces nuisances persistent." : ""}
-
-Je vous rappelle que ces agissements constituent un trouble anormal de voisinage au sens de la jurisprudence de la Cour de cassation et sont susceptibles d'engager votre responsabilité civile sur le fondement de l'article 1240 du Code civil.
-
-Par conséquent, je vous mets en demeure de faire cesser ces troubles dans un délai de 15 jours à compter de la réception de ce courrier.
-
-À défaut, je me verrai contraint(e) de saisir le conciliateur de justice ou le tribunal judiciaire compétent afin d'obtenir la cessation de ces troubles ainsi que des dommages et intérêts.
-
-Dans l'espoir que nous pourrons régler ce différend à l'amiable, je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
-
-[Votre signature]
-[Votre nom]
-`
-          },
-          {
-            id: 4,
-            title: 'Contestation de facture',
-            description: 'Modèle de lettre pour contester une facture que vous estimez incorrecte ou injustifiée.',
-            category: 'Consommation',
-            fields: [
-              { name: 'companyName', label: 'Nom de l\'entreprise', type: 'text', required: true },
-              { name: 'companyAddress', label: 'Adresse de l\'entreprise', type: 'textarea', required: true },
-              { name: 'invoiceNumber', label: 'Numéro de facture', type: 'text', required: true },
-              { name: 'invoiceDate', label: 'Date de la facture', type: 'date', required: true },
-              { name: 'invoiceAmount', label: 'Montant de la facture', type: 'text', required: true },
-              { name: 'contestReason', label: 'Motif de la contestation', type: 'select', required: true, options: [
-                'Erreur de facturation',
-                'Service non fourni',
-                'Produit non livré',
-                'Tarif non conforme',
-                'Autre'
-              ] },
-              { name: 'otherContestReason', label: 'Précisez le motif', type: 'textarea', required: false, conditionalOn: { field: 'contestReason', value: 'Autre' } },
-              { name: 'contestDetails', label: 'Détails de la contestation', type: 'textarea', required: true }
-            ],
-            template: `
-{companyName}
-{companyAddress}
-
-[Votre nom]
-[Votre adresse]
-[Votre email]
-[Votre téléphone]
-
-[Lieu], le [Date]
-
-Objet : Contestation de facture n° {invoiceNumber}
-
-Madame, Monsieur,
-
-Je conteste par la présente la facture n° {invoiceNumber} datée du {invoiceDate} d'un montant de {invoiceAmount} euros que vous m'avez adressée.
-
-Motif de la contestation : {contestReason === 'Autre' ? otherContestReason : contestReason}
-
-{contestDetails}
-
-Conformément à l'article L.121-91 du Code de la consommation, je vous demande de procéder à la rectification de cette facture dans les meilleurs délais.
-
-Dans l'attente de votre réponse, je suspends le paiement de la somme contestée.
-
-Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
-
-[Votre signature]
-[Votre nom]
-`
-          }
-        ];
-        
-        setTemplates(mockTemplates);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching templates:', error);
+        const response = await api.get('/ai/templates');
+        // The API returns { templates: [...] } where each template has id, name, variables
+        // We need to adapt this structure or fetch full details if needed
+        // For now, assume the API provides enough info for listing
+        setTemplates(response.data.templates || []);
+      } catch (err) {
+        console.error('Error fetching templates:', err);
+        setError(err.response?.data?.message || 'Failed to load templates.');
+      } finally {
         setLoading(false);
       }
     };
-    
+
     fetchTemplates();
   }, []);
   
   useEffect(() => {
     // Reset form data when template changes
+    // Reset form data when template changes
+    // The API only gives variable names, not full field definitions.
+    // We'll need to adjust how the form is built or fetch full template details.
+    // For now, let's initialize based on variable names.
     if (selectedTemplate) {
       const initialFormData = {};
-      selectedTemplate.fields.forEach(field => {
-        initialFormData[field.name] = '';
+      (selectedTemplate.variables || []).forEach(variableName => {
+        initialFormData[variableName] = '';
       });
       setFormData(initialFormData);
       setPreviewMode(false);
       setGeneratedDocument('');
+      setError(null); // Clear previous errors
     }
   }, [selectedTemplate]);
   
@@ -265,20 +71,27 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
-  const handleGenerateDocument = (e) => {
+  const handleGenerateDocument = async (e) => {
     e.preventDefault();
-    
-    // Generate document from template
-    let document = selectedTemplate.template;
-    
-    // Replace placeholders with form data
-    Object.keys(formData).forEach(key => {
-      const placeholder = `{${key}}`;
-      document = document.replace(new RegExp(placeholder, 'g'), formData[key] || '');
-    });
-    
-    setGeneratedDocument(document);
-    setPreviewMode(true);
+    if (!selectedTemplate) return;
+
+    setGenerating(true);
+    setError(null);
+    setGeneratedDocument('');
+
+    try {
+        const response = await api.post('/ai/generate-document', {
+            templateName: selectedTemplate.id, // Use the template ID/key from the API
+            variables: formData
+        });
+        setGeneratedDocument(response.data.document); // Assuming API returns { document: "..." }
+        setPreviewMode(true);
+    } catch (err) {
+         console.error('Error generating document:', err);
+         setError(err.response?.data?.message || 'Failed to generate document.');
+    } finally {
+        setGenerating(false);
+    }
   };
   
   const handleDownload = () => {
@@ -298,15 +111,16 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
     URL.revokeObjectURL(url);
   };
   
+  // Filtering based on API data (name only for now)
   const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
-    
-    return matchesSearch && matchesCategory;
+    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase());
+    // Category filtering might need adjustment based on API data or removed if not supported
+    // const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
+    return matchesSearch; // && matchesCategory;
   });
-  
-  const categories = ['all', ...new Set(templates.map(template => template.category))];
+
+  // Categories might need to be fetched or derived differently if not part of template list API response
+  // const categories = ['all', ...new Set(templates.map(template => template.category))];
 
   if (loading) {
     return (
@@ -322,35 +136,16 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
       
       {!selectedTemplate ? (
         <>
-          {/* Search and filters */}
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-              <div className="w-full md:w-1/3">
-                <input
-                  type="text"
-                  placeholder="Rechercher un modèle..."
-                  className="form-input w-full"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex space-x-2 overflow-x-auto">
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => setCategoryFilter(category)}
-                    className={`px-3 py-1 rounded-md text-sm font-medium whitespace-nowrap ${
-                      categoryFilter === category
-                        ? 'bg-primary-100 text-primary-800'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                    }`}
-                  >
-                    {category === 'all' ? 'Toutes catégories' : category}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Search */}
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+             <input
+                type="text"
+                placeholder="Rechercher un modèle par nom..."
+                className="form-input w-full"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {/* Category filter removed for now, pending API support */}
           </div>
           
           {/* Templates grid */}
@@ -362,14 +157,11 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
                   className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200"
                 >
                   <div className="p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {template.category}
-                      </span>
-                    </div>
+                    {/* Category display removed for now */}
                     
-                    <h2 className="text-xl font-semibold mb-2">{template.title}</h2>
-                    <p className="text-gray-600 mb-4">{template.description}</p>
+                    <h2 className="text-xl font-semibold mb-2">{template.name}</h2>
+                    {/* Description might not be available from list API */}
+                    {/* <p className="text-gray-600 mb-4">{template.description}</p> */}
                     
                     <button
                       onClick={() => handleSelectTemplate(template)}
@@ -392,15 +184,15 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
           <div className="p-6 border-b">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">{selectedTemplate.title}</h2>
-                <p className="text-gray-600">{selectedTemplate.description}</p>
+                <h2 className="text-xl font-semibold">{selectedTemplate.name}</h2>
+                {/* <p className="text-gray-600">{selectedTemplate.description}</p> */}
               </div>
               
               <button
                 onClick={handleBackToList}
-                className="btn-outline"
+                className="btn-outline flex items-center"
               >
-                Retour à la liste
+                <FaArrowLeft className="mr-2" /> Retour
               </button>
             </div>
           </div>
@@ -409,74 +201,30 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
             {!previewMode ? (
               <form onSubmit={handleGenerateDocument} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {selectedTemplate.fields.map((field) => {
-                    // Check if conditional field should be displayed
-                    if (field.conditionalOn) {
-                      const { field: condField, value: condValue } = field.conditionalOn;
-                      if (formData[condField] !== condValue) {
-                        return null;
-                      }
-                    }
-                    
+                  {/* Generate form fields based on API 'variables' */}
+                  {(selectedTemplate.variables || []).map((variableName) => {
+                    // Simple input for each variable for now
+                    // Could be enhanced later based on variable naming conventions (e.g., 'date' -> date input)
+                    const label = variableName
+                        .replace(/([A-Z])/g, ' $1') // Add space before capitals
+                        .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+
                     return (
-                      <div key={field.name} className="form-group">
-                        <label htmlFor={field.name} className="form-label">
-                          {field.label}
-                          {field.required && <span className="text-danger-500 ml-1">*</span>}
+                      <div key={variableName} className="form-group">
+                        <label htmlFor={variableName} className="form-label">
+                          {label}
+                          {/* Basic required assumption - enhance if needed */}
+                          <span className="text-danger-500 ml-1">*</span>
                         </label>
-                        
-                        {field.type === 'text' && (
-                          <input
-                            type="text"
-                            id={field.name}
-                            name={field.name}
-                            value={formData[field.name] || ''}
-                            onChange={handleInputChange}
-                            className="form-input"
-                            required={field.required}
-                          />
-                        )}
-                        
-                        {field.type === 'textarea' && (
-                          <textarea
-                            id={field.name}
-                            name={field.name}
-                            value={formData[field.name] || ''}
-                            onChange={handleInputChange}
-                            className="form-input h-32"
-                            required={field.required}
-                          ></textarea>
-                        )}
-                        
-                        {field.type === 'date' && (
-                          <input
-                            type="date"
-                            id={field.name}
-                            name={field.name}
-                            value={formData[field.name] || ''}
-                            onChange={handleInputChange}
-                            className="form-input"
-                            required={field.required}
-                          />
-                        )}
-                        
-                        {field.type === 'select' && (
-                          <select
-                            id={field.name}
-                            name={field.name}
-                            value={formData[field.name] || ''}
-                            onChange={handleInputChange}
-                            className="form-input"
-                            required={field.required}
-                          >
-                            <option value="">Sélectionnez une option</option>
-                            {field.options.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        <input
+                          type="text" // Default to text input
+                          id={variableName}
+                          name={variableName}
+                          value={formData[variableName] || ''}
+                          onChange={handleInputChange}
+                          className="form-input"
+                          required={true} // Assume all are required for now
+                        />
                       </div>
                     );
                   })}
@@ -486,33 +234,36 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
                   <button
                     type="submit"
                     className="btn-primary"
+                    disabled={generating} // Disable while generating
                   >
-                    Générer le document
+                    {generating ? 'Génération...' : 'Générer le document'}
                   </button>
                 </div>
               </form>
             ) : (
               <div className="space-y-6">
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                  <h3 className="text-lg font-medium mb-4">Aperçu du document</h3>
-                  <div className="whitespace-pre-wrap font-mono text-sm">
-                    {generatedDocument}
+                  <h3 className="text-lg font-medium mb-4">Aperçu du document généré</h3>
+                   {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+                  <div className="whitespace-pre-wrap font-mono text-sm bg-gray-100 p-4 border rounded max-h-96 overflow-y-auto">
+                    {generatedDocument || "Le document généré apparaîtra ici."}
                   </div>
                 </div>
                 
                 <div className="flex justify-between">
                   <button
-                    onClick={() => setPreviewMode(false)}
-                    className="btn-outline"
+                    onClick={() => { setPreviewMode(false); setError(null); }} // Clear error when going back
+                    className="btn-outline flex items-center"
                   >
-                    Modifier les informations
+                   <FaEdit className="mr-2" /> Modifier
                   </button>
                   
                   <button
                     onClick={handleDownload}
-                    className="btn-primary"
+                    className="btn-primary flex items-center"
+                    disabled={!generatedDocument || generating} // Disable if no doc or generating
                   >
-                    Télécharger le document
+                   <FaDownload className="mr-2" /> Télécharger (.txt)
                   </button>
                 </div>
               </div>

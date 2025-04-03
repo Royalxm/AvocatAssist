@@ -6,8 +6,9 @@ const { db } = require('../config/database');
  * @param {Function} callback - Callback function
  */
 exports.createProposal = (proposalData, callback) => {
-  const { requestId, lawyerId, proposalText, price } = proposalData;
-  
+  // Updated parameters to match frontend form
+  const { requestId, lawyerId, rate, estimatedDuration, comment } = proposalData;
+
   // Check if legal request exists and is open
   db.get('SELECT status FROM LegalRequests WHERE id = ?', [requestId], (err, request) => {
     if (err) {
@@ -35,10 +36,10 @@ exports.createProposal = (proposalData, callback) => {
           return callback(new Error('Vous avez déjà soumis une proposition pour cette demande'));
         }
         
-        // Insert proposal
+        // Insert proposal - Assuming schema updated with rate, estimatedDuration, comment columns
         db.run(
-          'INSERT INTO Proposals (requestId, lawyerId, proposalText, price, submittedAt, status) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
-          [requestId, lawyerId, proposalText, price, 'en attente'],
+          'INSERT INTO Proposals (requestId, lawyerId, rate, estimatedDuration, comment, submittedAt, status) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+          [requestId, lawyerId, rate, estimatedDuration, comment, 'en attente'],
           function(err) {
             if (err) {
               return callback(err);
@@ -232,8 +233,9 @@ exports.getProposalsByLawyerId = (lawyerId, page, limit, callback) => {
  * @param {Function} callback - Callback function
  */
 exports.updateProposal = (id, proposalData, callback) => {
-  const { proposalText, price, status } = proposalData;
-  
+  // Also allow updating rate, estimatedDuration, comment if needed
+  const { rate, estimatedDuration, comment, status } = proposalData;
+
   // Check if proposal exists
   db.get('SELECT id, status FROM Proposals WHERE id = ?', [id], (err, proposal) => {
     if (err) {
@@ -253,14 +255,19 @@ exports.updateProposal = (id, proposalData, callback) => {
     let query = 'UPDATE Proposals SET';
     let params = [];
     
-    if (proposalText !== undefined) {
-      query += ' proposalText = ?,';
-      params.push(proposalText);
+    if (rate !== undefined) {
+      query += ' rate = ?,';
+      params.push(rate);
     }
-    
-    if (price !== undefined) {
-      query += ' price = ?,';
-      params.push(price);
+
+    if (estimatedDuration !== undefined) {
+      query += ' estimatedDuration = ?,';
+      params.push(estimatedDuration);
+    }
+
+    if (comment !== undefined) {
+        query += ' comment = ?,';
+        params.push(comment);
     }
     
     if (status !== undefined) {
