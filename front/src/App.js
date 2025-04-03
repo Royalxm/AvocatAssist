@@ -25,7 +25,7 @@ const ClientCreateLegalRequest = lazy(() => import('./pages/client/CreateLegalRe
 const EditLegalRequest = lazy(() => import('./pages/client/EditLegalRequest'));
 const ClientProposals = lazy(() => import('./pages/client/Proposals'));
 const ClientTransactions = lazy(() => import('./pages/client/Transactions'));
-const ClientSubscription = lazy(() => import('./pages/client/Subscription'));
+const ClientSubscriptionPage = lazy(() => import('./pages/client/SubscriptionPage')); // Updated import path
 const ClientAiAssistant = lazy(() => import('./pages/client/AiAssistant'));
 const ClientTemplates = lazy(() => import('./pages/client/Templates'));
 const CreateProject = lazy(() => import('./pages/client/CreateProject')); // Import CreateProject
@@ -118,7 +118,7 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<LandingPage />} />
+          <Route index element={isAuthenticated() ? getDefaultRedirect() : <LandingPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         
@@ -142,8 +142,8 @@ function App() {
           <Route path="legal-requests/:id/edit" element={<EditLegalRequest />} />
           <Route path="proposals" element={<ClientProposals />} />
           <Route path="transactions" element={<ClientTransactions />} />
-          <Route path="subscription" element={<ClientSubscription />} />
-          <Route path="ai-assistant" element={<QuickAiAssistant />} />
+          <Route path="subscription" element={<ClientSubscriptionPage />} /> {/* Use updated component */}
+          {/* Removed ai-assistant route from here */}
         </Route>
         
         {/* Chat routes with ChatLayout */}
@@ -162,6 +162,15 @@ function App() {
           </ProtectedRoute>
         }>
           <Route path=":projectId" element={<ProjectChat />} /> {/* Route for project-based chat */}
+        </Route>
+        
+        {/* AI Assistant route with ChatLayout */}
+        <Route path="/client/ai-assistant" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <ChatLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<QuickAiAssistant />} /> {/* Use index route */}
         </Route>
         
         {/* Additional client routes */}

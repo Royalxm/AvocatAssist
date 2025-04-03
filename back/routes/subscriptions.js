@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const subscriptionController = require('../controllers/subscriptionController');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth'); // Assuming authorize checks req.user.role against the array
 
 /**
  * @route   GET /api/subscriptions/plans
@@ -41,16 +41,16 @@ router.delete('/plans/:id', authenticate, authorize(['support', 'manager']), sub
 /**
  * @route   POST /api/subscriptions/subscribe
  * @desc    Subscribe user to a plan
- * @access  Private (Lawyer only)
+ * @access  Private (Lawyer only) - Renamed
  */
-router.post('/subscribe', authenticate, subscriptionController.subscribeToPlan);
+router.post('/subscribe/lawyer', authenticate, authorize(['lawyer']), subscriptionController.subscribeLawyerToPlan); // Renamed controller function
 
 /**
  * @route   GET /api/subscriptions/user
  * @desc    Get user subscription
- * @access  Private (Lawyer only)
+ * @access  Private (Lawyer only) - Renamed
  */
-router.get('/user', authenticate, subscriptionController.getUserSubscription);
+router.get('/user/lawyer', authenticate, authorize(['lawyer']), subscriptionController.getLawyerSubscription); // Renamed controller function
 
 /**
  * @route   PUT /api/subscriptions/token-balance
@@ -65,5 +65,43 @@ router.put('/token-balance', authenticate, authorize(['support', 'manager']), su
  * @access  Private (Admin only)
  */
 router.post('/reset-tokens', authenticate, authorize(['support', 'manager']), subscriptionController.resetTokenBalances);
+
+// --- Client Subscription Routes ---
+
+/**
+ * @route   POST /api/subscriptions/subscribe/client
+ * @desc    Initiate subscription for a client (creates pending record)
+ * @access  Private (Client only)
+ */
+router.post('/subscribe/client', authenticate, authorize(['client']), subscriptionController.subscribeClientToPlan);
+
+/**
+ * @route   POST /api/subscriptions/subscribe/client/payment
+ * @desc    Handle successful payment confirmation for a client subscription
+ * @access  Private (Client only) - Simulates payment callback
+ */
+router.post('/subscribe/client/payment', authenticate, authorize(['client']), subscriptionController.handleSubscriptionPayment);
+
+/**
+ * @route   GET /api/subscriptions/user/client
+ * @desc    Get current client's subscription details
+ * @access  Private (Client only)
+ */
+router.get('/user/client', authenticate, authorize(['client']), subscriptionController.getClientSubscription);
+
+/**
+ * @route   DELETE /api/subscriptions/subscribe/client
+ * @desc    Cancel the current client's active subscription
+ * @access  Private (Client only)
+ */
+router.delete('/subscribe/client', authenticate, authorize(['client']), subscriptionController.cancelClientSubscription);
+
+/**
+ * @route   GET /api/subscriptions/user/client/history
+ * @desc    Get client's subscription history
+ * @access  Private (Client only)
+ */
+router.get('/user/client/history', authenticate, authorize(['client']), subscriptionController.getClientSubscriptionHistory);
+
 
 module.exports = router;

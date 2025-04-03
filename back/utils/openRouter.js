@@ -253,6 +253,12 @@ Réponse de l'assistant juridique (en suivant **TOUTES** les instructions ci-des
         ...options
       });
       
+      // Add check for valid response structure
+      if (!response || !response.choices || response.choices.length === 0) {
+        console.error('Invalid response received from OpenRouter:', response);
+        throw new Error('Failed to get valid response from AI service.');
+      }
+
       const rawResponse = response.choices[0].message.content;
       const suggestionMarker = '__SUGGESTED_QUESTIONS_MARKER__';
       const markerIndex = rawResponse.indexOf(suggestionMarker);

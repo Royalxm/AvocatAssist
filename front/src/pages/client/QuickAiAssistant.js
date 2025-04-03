@@ -262,7 +262,7 @@ const QuickAiAssistant = () => {
   return (
     <div className="flex h-full bg-gray-50">
       {/* Conversations Sidebar */}
-      <div className="w-80 h-full bg-white border-r flex flex-col shadow-md">
+      <div className="w-80 h-full bg-white border-r flex flex-col shadow-md flex-shrink-0">
         <div className="p-5 border-b bg-gradient-to-r from-primary-600 to-primary-700">
           <h2 className="text-xl font-bold text-white mb-4">Conversations</h2>
           <button
@@ -340,7 +340,8 @@ const QuickAiAssistant = () => {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-grow flex flex-col bg-white h-full border-l">
+      {/* Main Chat Area */}
+      <div className="flex-grow flex flex-col bg-white h-full border-l overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0 border-b bg-gradient-to-r from-primary-600 to-primary-700 shadow-md z-10 p-4">
           <div className="flex justify-between items-center">
@@ -365,10 +366,8 @@ const QuickAiAssistant = () => {
           )}
         </div>
 
-        {/* Main Content Area - Fixed Layout */}
-        <div className="flex-grow flex flex-col h-full">
-          {/* Messages Area - Scrollable */}
-          <div className="flex-grow overflow-y-auto p-4 space-y-4">
+        {/* Messages Area - Scrollable */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-4">
             {loadingConversations ? (
               <div className="flex flex-col justify-center items-center h-full text-gray-500">
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-primary-600 mb-4"></div>
@@ -460,14 +459,15 @@ const QuickAiAssistant = () => {
                     </div>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} /> {/* Moved ref inside scrollable area */}
               </>
             )}
-          </div>
+        </div>
 
           {/* Suggested Messages */}
+          {/* Suggested Messages - Conditionally rendered */}
           {messages.length > 0 && !isTyping && suggestedMessages.length > 0 && (
-            <div className="p-4 border-t">
+            <div className="flex-shrink-0 p-4 border-t"> {/* Removed extra '{' and comment */}
               <p className="text-sm font-medium text-gray-600 mb-2">Suggestions :</p>
               <div className="flex flex-wrap gap-2">
                 {suggestedMessages.map((suggestion, index) => (
@@ -484,7 +484,8 @@ const QuickAiAssistant = () => {
           )}
 
           {/* Input Area - Always at Bottom */}
-          <div className="border-t p-4 bg-white">
+          {/* Input Area - Fixed at bottom */}
+          <div className="flex-shrink-0 border-t p-4 bg-white"> {/* Removed comment */}
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
               <input
                 type="text"
@@ -506,7 +507,6 @@ const QuickAiAssistant = () => {
             </form>
           </div>
         </div>
-      </div>
     </div>
   );
 };

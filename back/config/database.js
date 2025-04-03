@@ -283,6 +283,24 @@ const initializeDatabase = () => {
       )
     `);
 
+    // Create ClientSubscriptions table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS ClientSubscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        planId INTEGER NOT NULL,
+        status TEXT CHECK(status IN ('active', 'cancelled', 'pending_payment', 'expired', 'trial', 'pending_cancellation')) NOT NULL DEFAULT 'pending_payment',
+        startDate DATETIME,
+        endDate DATETIME,
+        paymentProvider TEXT, -- e.g., 'stripe', 'paypal'
+        paymentSubscriptionId TEXT, -- ID from the payment provider
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY(planId) REFERENCES SubscriptionPlans(id) ON DELETE RESTRICT -- Prevent deleting plans in use
+      )
+    `);
+
     // Trigger to update Chats.updatedAt when a new message is inserted
     db.run(`
       CREATE TRIGGER IF NOT EXISTS update_chat_timestamp
@@ -301,6 +319,16 @@ const initializeDatabase = () => {
       WHEN OLD.content IS NOT NEW.content -- Only run if content actually changed
       BEGIN
         UPDATE Messages SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
+      END;
+    `);
+
+    // Trigger to update ClientSubscriptions.updatedAt
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS update_client_subscription_timestamp
+      AFTER UPDATE ON ClientSubscriptions
+      FOR EACH ROW
+      BEGIN
+        UPDATE ClientSubscriptions SET updatedAt = CURRENT_TIMESTAMP WHERE id = OLD.id;
       END;
     `);
     
